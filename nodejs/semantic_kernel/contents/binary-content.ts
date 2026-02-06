@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'fs'
-import { BINARY_CONTENT_TAG } from './const.js'
-import { KernelContent } from './kernel-content.js'
+import { BINARY_CONTENT_TAG } from './const'
+import { KernelContent } from './kernel-content'
 
 /**
  * Data URI utility class for handling data URIs.

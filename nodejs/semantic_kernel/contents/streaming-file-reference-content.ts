@@ -1,12 +1,12 @@
-import { FILE_REFERENCE_CONTENT_TAG } from './const'
+import { STREAMING_FILE_REFERENCE_CONTENT_TAG } from './const'
 import { KernelContent } from './kernel-content'
 
 /**
- * File reference content.
+ * Streaming File reference content.
  */
-export class FileReferenceContent extends KernelContent {
-  readonly contentType: string = FILE_REFERENCE_CONTENT_TAG
-  readonly tag: string = FILE_REFERENCE_CONTENT_TAG
+export class StreamingFileReferenceContent extends KernelContent {
+  readonly contentType: string = STREAMING_FILE_REFERENCE_CONTENT_TAG
+  readonly tag: string = STREAMING_FILE_REFERENCE_CONTENT_TAG
   fileId?: string
   tools: any[]
   dataSource?: any
@@ -32,7 +32,7 @@ export class FileReferenceContent extends KernelContent {
    * Return the string representation of the file reference content.
    */
   toString(): string {
-    return `FileReferenceContent(file_id=${this.fileId})`
+    return `StreamingFileReferenceContent(file_id=${this.fileId})`
   }
 
   /**
@@ -54,8 +54,8 @@ export class FileReferenceContent extends KernelContent {
   /**
    * Create an instance from an element.
    */
-  static fromElement(element: { tag: string; attributes: Record<string, string> }): FileReferenceContent {
-    return new FileReferenceContent({
+  static fromElement(element: { tag: string; attributes: Record<string, string> }): StreamingFileReferenceContent {
+    return new StreamingFileReferenceContent({
       fileId: element.attributes.file_id,
     })
   }

@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs'
 import { lookup } from 'mime-types'
-import { BinaryContent } from './binary-content.js'
-import { IMAGE_CONTENT_TAG } from './const.js'
+import { BinaryContent } from './binary-content'
+import { IMAGE_CONTENT_TAG } from './const'
 
 /**
  * Image Content class.

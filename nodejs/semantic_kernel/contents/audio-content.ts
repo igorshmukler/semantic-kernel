@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs'
 import { lookup } from 'mime-types'
-import { BinaryContent } from './binary-content.js'
-import { AUDIO_CONTENT_TAG } from './const.js'
+import { BinaryContent } from './binary-content'
+import { AUDIO_CONTENT_TAG } from './const'
 
 /**
  * Audio Content class.

@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft. All rights reserved.
-
 /**
  * Version constant - should match the package version
  */

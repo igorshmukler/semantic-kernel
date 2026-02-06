@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft. All rights reserved.
-
 /**
  * Base class for all kernel contents.
  *

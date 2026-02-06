@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft. All rights reserved.
-
 /**
  * Constants for tracing agent activities with semantic conventions.
  * Ideally, we should use the attributes from the semcov package.

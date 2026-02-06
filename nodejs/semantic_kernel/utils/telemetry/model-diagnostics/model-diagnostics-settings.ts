@@ -1,6 +1,4 @@
-// Copyright (c) Microsoft. All rights reserved.
-
-import { experimental } from '../../feature-stage-decorator.js'
+import { experimental } from '../../feature-stage-decorator'
 
 /**
  * Settings for model diagnostics.

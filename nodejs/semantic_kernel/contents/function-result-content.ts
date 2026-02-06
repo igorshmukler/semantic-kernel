@@ -1,7 +1,7 @@
-import { FUNCTION_RESULT_CONTENT_TAG, TEXT_CONTENT_TAG } from './const.js'
-import { KernelContent } from './kernel-content.js'
-import { TextContent } from './text-content.js'
-import { AuthorRole } from './utils/author-role.js'
+import { FUNCTION_RESULT_CONTENT_TAG, TEXT_CONTENT_TAG } from './const'
+import { KernelContent } from './kernel-content'
+import { TextContent } from './text-content'
+import { AuthorRole } from './utils/author-role'
 
 const DEFAULT_FULLY_QUALIFIED_NAME_SEPARATOR = '-'
 

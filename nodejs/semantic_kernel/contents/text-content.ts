@@ -1,5 +1,5 @@
-import { TEXT_CONTENT_TAG } from './const.js'
-import { KernelContent } from './kernel-content.js'
+import { TEXT_CONTENT_TAG } from './const'
+import { KernelContent } from './kernel-content'
 
 /**
  * This represents text response content.

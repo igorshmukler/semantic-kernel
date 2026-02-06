@@ -1,5 +1,5 @@
-import { FUNCTION_CALL_CONTENT_TAG } from './const.js'
-import { KernelContent } from './kernel-content.js'
+import { FUNCTION_CALL_CONTENT_TAG } from './const'
+import { KernelContent } from './kernel-content'
 
 const DEFAULT_FULLY_QUALIFIED_NAME_SEPARATOR = '-'
 const EMPTY_VALUES: (string | null | undefined)[] = ['', '{}', null, undefined]

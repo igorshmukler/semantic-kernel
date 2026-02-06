@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft. All rights reserved.
-
 import { Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import {
   Agent,
@@ -7,9 +5,9 @@ import {
   AuthorRole,
   ChatMessageContent,
   StreamingChatMessageContent,
-} from '../../../agents/agent.js'
-import { ModelDiagnosticSettings } from '../model-diagnostics/model-diagnostics-settings.js'
-import * as genAiAttributes from './gen-ai-attributes.js'
+} from '../../../agents/agent'
+import { ModelDiagnosticSettings } from '../model-diagnostics/model-diagnostics-settings'
+import * as genAiAttributes from './gen-ai-attributes'
 
 /**
  * Module to instrument GenAI agents using OpenTelemetry and OpenTelemetry Semantic Conventions.

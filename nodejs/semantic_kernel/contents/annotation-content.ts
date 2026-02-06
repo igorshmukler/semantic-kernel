@@ -1,5 +1,5 @@
-import { ANNOTATION_CONTENT_TAG } from './const.js'
-import { KernelContent } from './kernel-content.js'
+import { ANNOTATION_CONTENT_TAG } from './const'
+import { KernelContent } from './kernel-content'
 
 /**
  * Citation type enumeration.
