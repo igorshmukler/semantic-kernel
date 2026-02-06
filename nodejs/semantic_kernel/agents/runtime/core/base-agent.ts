@@ -1,11 +1,11 @@
-import { experimental } from '../../../utils/feature-stage-decorator.js'
-import { AgentId } from './agent-id.js'
-import { AgentMetadata, CoreAgentMetadata } from './agent-metadata.js'
-import { AgentType, CoreAgentType } from './agent-type.js'
-import { Agent } from './agent.js'
-import { CancellationToken } from './cancellation-token.js'
-import { MessageContext } from './message-context.js'
-import { TopicId } from './topic.js'
+import { experimental } from '../../../utils/feature-stage-decorator'
+import { Agent } from './agent'
+import { AgentId } from './agent-id'
+import { AgentMetadata, CoreAgentMetadata } from './agent-metadata'
+import { AgentType, CoreAgentType } from './agent-type'
+import { CancellationToken } from './cancellation-token'
+import { MessageContext } from './message-context'
+import { TopicId } from './topic'
 
 /**
  * Interface for core runtime functionality needed by BaseAgent.
