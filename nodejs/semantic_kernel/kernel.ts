@@ -243,6 +243,22 @@ export class Kernel extends EventEmitter {
     return func
   }
 
+  getFullListOfFunctionMetadata(): KernelFunctionMetadata[] {
+    /**
+     * Get a list of all function metadata in the plugins.
+     */
+    if (!this._plugins || this._plugins.size === 0) {
+      return []
+    }
+    const metadata: KernelFunctionMetadata[] = []
+    for (const plugin of this._plugins.values()) {
+      for (const func of plugin.functions.values()) {
+        metadata.push(func.metadata)
+      }
+    }
+    return metadata
+  }
+
   // Service management
   get services(): Map<string, AIServiceClient> {
     return this._services
