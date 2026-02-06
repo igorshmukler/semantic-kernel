@@ -1,4 +1,4 @@
-import { experimental } from '../../../utils/feature-stage-decorator.js'
+import { experimental } from '../../../utils/feature-stage-decorator'
 
 /**
  * Provides a description for an agent: type, key, and an optional 'description' field.

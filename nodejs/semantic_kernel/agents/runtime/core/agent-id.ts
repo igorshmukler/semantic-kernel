@@ -1,6 +1,6 @@
-import { experimental } from '../../../utils/feature-stage-decorator.js'
-import { AgentType } from './agent-type.js'
-import { isValidAgentType } from './validation-utils.js'
+import { experimental } from '../../../utils/feature-stage-decorator'
+import { AgentType } from './agent-type'
+import { isValidAgentType } from './validation-utils'
 
 /**
  * Defines the minimal interface an AgentId.

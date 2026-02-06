@@ -1,6 +1,6 @@
-import { AgentId } from './agent-id.js'
-import { AgentMetadata } from './agent-metadata.js'
-import { MessageContext } from './message-context.js'
+import { AgentId } from './agent-id'
+import { AgentMetadata } from './agent-metadata'
+import { MessageContext } from './message-context'
 
 /**
  * Interface for an agent in the runtime system.

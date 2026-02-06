@@ -1,4 +1,4 @@
-import { experimental } from '../../../utils/feature-stage-decorator.js'
+import { experimental } from '../../../utils/feature-stage-decorator'
 
 /**
  * A token used to cancel pending async calls.

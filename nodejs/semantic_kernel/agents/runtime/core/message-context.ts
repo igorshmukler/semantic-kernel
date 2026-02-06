@@ -1,7 +1,7 @@
-import { experimental } from '../../../utils/feature-stage-decorator.js'
-import { AgentId } from './agent-id.js'
-import { CancellationToken } from './cancellation-token.js'
-import { TopicId } from './topic.js'
+import { experimental } from '../../../utils/feature-stage-decorator'
+import { AgentId } from './agent-id'
+import { CancellationToken } from './cancellation-token'
+import { TopicId } from './topic'
 
 /**
  * Context for a message sent to an agent.

@@ -1,4 +1,4 @@
-import { experimental } from '../../../utils/feature-stage-decorator.js'
+import { experimental } from '../../../utils/feature-stage-decorator'
 
 /**
  * Defines the minimal interface an AgentType.

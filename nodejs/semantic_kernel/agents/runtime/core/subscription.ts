@@ -1,5 +1,5 @@
-import { AgentId } from './agent-id.js'
-import { TopicId } from './topic.js'
+import { AgentId } from './agent-id'
+import { TopicId } from './topic'
 
 /**
  * Subscriptions define the topics that an agent is interested in.

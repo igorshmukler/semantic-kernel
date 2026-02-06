@@ -1,4 +1,4 @@
-import { experimental } from '../../../utils/feature-stage-decorator.js'
+import { experimental } from '../../../utils/feature-stage-decorator'
 
 const TOPIC_TYPE_REGEX = /^[\w\-\.\:\=]+$/
 
