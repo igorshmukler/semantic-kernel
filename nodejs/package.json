@@ -61,6 +61,7 @@
     "axios": "^1.7.0",
     "dotenv": "^16.4.0",
     "jsdom": "^25.0.1",
+    "mime-types": "^3.0.2",
     "openai": "^4.85.0",
     "uuid": "^11.0.3",
     "ws": "^8.18.0",
@@ -68,6 +69,7 @@
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
+    "@types/mime-types": "^3.0.1",
     "@types/node": "^20.19.31",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.0",
