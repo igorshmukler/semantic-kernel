@@ -1,8 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-
-import { experimental } from '../../../utils/feature-stage-decorator.js'
-import { BaseAgent } from './base-agent.js'
-import { MessageContext } from './message-context.js'
+import { experimental } from '../../../utils/feature-stage-decorator'
+import { BaseAgent } from './base-agent'
+import { MessageContext } from './message-context'
 
 /**
  * Exception thrown when an agent cannot handle a message.

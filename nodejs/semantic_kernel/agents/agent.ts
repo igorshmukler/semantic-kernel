@@ -1,7 +1,3 @@
-/**
- * Copyright (c) Microsoft. All rights reserved.
- */
-
 import { randomUUID } from 'crypto'
 import { Kernel, KernelArguments, KernelPlugin, PromptExecutionSettings, PromptTemplateConfig } from '../kernel'
 
