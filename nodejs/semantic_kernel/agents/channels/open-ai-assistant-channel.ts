@@ -136,6 +136,7 @@ export class OpenAIAssistantChannel extends AgentChannel {
               agentNames.set(message.assistant_id, agent.name)
             }
           } catch (error) {
+            console.error(`Failed to retrieve assistant with ID ${message.assistant_id}:`, error)
             // If we can't retrieve the assistant, use the ID
             agentNames.set(message.assistant_id, message.assistant_id)
           }
@@ -151,7 +152,9 @@ export class OpenAIAssistantChannel extends AgentChannel {
         }
       }
     } catch (error) {
-      throw new Error(`Failed to get thread history: ${error instanceof Error ? error.message : String(error)}`)
+      throw new Error(`Failed to get thread history: ${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+      })
     }
   }
 
@@ -162,7 +165,9 @@ export class OpenAIAssistantChannel extends AgentChannel {
     try {
       await this.client.beta.threads.delete(this.threadId)
     } catch (error) {
-      throw new Error(`Failed to delete thread: ${error instanceof Error ? error.message : String(error)}`)
+      throw new Error(`Failed to delete thread: ${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+      })
     }
   }
 

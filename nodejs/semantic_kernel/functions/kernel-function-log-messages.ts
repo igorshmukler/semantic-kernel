@@ -48,7 +48,7 @@ export class KernelFunctionLogMessages {
       try {
         logger.debug(`Function result:`, functionResult)
       } catch (error) {
-        logger.error('Function result: Failed to convert result value to string')
+        logger.error('Function result: Failed to convert result value to string, error:', error)
       }
     } else {
       logger.debug('Function result: None')

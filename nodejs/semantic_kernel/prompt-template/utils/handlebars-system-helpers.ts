@@ -60,6 +60,7 @@ function _message(this: HandlebarsContext, options: HandlebarsOptions, ...args: 
       content = options.fn(this)
     }
   } catch (e) {
+    console.log('Error rendering message content:', e)
     // Ignore error
   }
 

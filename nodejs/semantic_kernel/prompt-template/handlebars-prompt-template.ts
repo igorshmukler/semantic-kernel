@@ -43,7 +43,7 @@ export class HandlebarsPromptTemplate extends PromptTemplateBase {
       try {
         this._templateCompiler = Handlebars.compile(promptTemplateConfig.template)
       } catch (e) {
-        console.error(`Invalid handlebars template: ${promptTemplateConfig.template}`)
+        console.error(`Invalid handlebars template: ${promptTemplateConfig.template} error:`, e)
         throw new HandlebarsTemplateSyntaxError(`Invalid handlebars template: ${promptTemplateConfig.template}`)
       }
     }

@@ -103,6 +103,7 @@ export class VarBlock extends Block {
     try {
       return String(value)
     } catch (e) {
+      console.log(`Failed to convert variable \`${Symbols.VAR_PREFIX}: ${this.name}\` value to string:`, e)
       throw new VarBlockRenderError(`Block ${this.name} failed to be parsed to a string, type is ${typeof value}`)
     }
   }
