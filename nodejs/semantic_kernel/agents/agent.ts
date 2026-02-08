@@ -1,4 +1,7 @@
 import { randomUUID } from 'crypto'
+import { ChatMessageContent, CMCItemTypes } from '../contents/chat-message-content'
+import { StreamingChatMessageContent } from '../contents/streaming-chat-message-content'
+import { AuthorRole } from '../contents/utils/author-role'
 import { Kernel, KernelArguments, KernelPlugin, PromptExecutionSettings, PromptTemplateConfig } from '../kernel'
 
 // #region Declarative Spec Definitions
@@ -158,73 +161,6 @@ export abstract class AgentThread {
 
 // #endregion
 
-// #region ChatMessageContent Types
-
-/**
- * Author role enumeration.
- */
-export enum AuthorRole {
-  USER = 'user',
-  ASSISTANT = 'assistant',
-  SYSTEM = 'system',
-  TOOL = 'tool',
-}
-
-/**
- * Chat message content item types.
- */
-export type ChatMessageContentItem = any
-
-/**
- * Chat message content class.
- */
-export class ChatMessageContent {
-  role: AuthorRole | string
-  content: string
-  name?: string
-  metadata: Record<string, any>
-  items: ChatMessageContentItem[]
-
-  constructor(options: {
-    role: AuthorRole | string
-    content: string
-    name?: string
-    metadata?: Record<string, any>
-    items?: ChatMessageContentItem[]
-  }) {
-    this.role = options.role
-    this.content = options.content
-    this.name = options.name
-    this.metadata = options.metadata || {}
-    this.items = options.items || []
-  }
-
-  toString(): string {
-    return this.content
-  }
-}
-
-/**
- * Streaming chat message content class.
- */
-export class StreamingChatMessageContent extends ChatMessageContent {
-  choiceIndex?: number
-
-  constructor(options: {
-    role: AuthorRole | string
-    content: string
-    name?: string
-    metadata?: Record<string, any>
-    items?: ChatMessageContentItem[]
-    choiceIndex?: number
-  }) {
-    super(options)
-    this.choiceIndex = options.choiceIndex
-  }
-}
-
-// #endregion
-
 // #region AgentResponseItem
 
 /**
@@ -249,7 +185,7 @@ export class AgentResponseItem<TMessage extends ChatMessageContent> {
   /**
    * Get the items of the response item.
    */
-  get items(): ChatMessageContentItem[] {
+  get items(): CMCItemTypes[] {
     return this.message.items
   }
 
@@ -946,7 +882,7 @@ export abstract class DeclarativeSpecMixin extends Agent {
    *
    * Override in subclasses if necessary.
    */
-  static resolvePlaceholders(yamlStr: string, settings?: any, extras?: Record<string, any>): string {
+  static resolvePlaceholders(yamlStr: string, _settings?: any, _extras?: Record<string, any>): string {
     return yamlStr
   }
 

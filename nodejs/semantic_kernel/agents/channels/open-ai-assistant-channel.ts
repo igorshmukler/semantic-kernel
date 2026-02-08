@@ -146,7 +146,7 @@ export class OpenAIAssistantChannel extends AgentChannel {
         // Generate message content from the thread message
         const content = this.generateMessageContent(assistantName, message)
 
-        if (content && content.items && content.items.length > 0) {
+        if (content?.items && content.items.length > 0) {
           yield content
         }
       }
