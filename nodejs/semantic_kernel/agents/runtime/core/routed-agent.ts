@@ -76,7 +76,7 @@ export function messageHandler<TAgent, TReceives, TProduces>(
 ) => void {
   return function (
     _target: any,
-    propertyKey: string,
+    _propertyKey: string,
     descriptor: TypedPropertyDescriptor<(this: TAgent, message: TReceives, ctx: MessageContext) => Promise<TProduces>>
   ): void {
     const originalMethod = descriptor.value!
