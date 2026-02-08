@@ -1,5 +1,7 @@
+import { ChatMessageContent } from './chat-message-content'
 import { FUNCTION_RESULT_CONTENT_TAG } from './const'
 import { KernelContent } from './kernel-content'
+import { StreamingChatMessageContent } from './streaming-chat-message-content'
 import { TextContent } from './text-content'
 import { AuthorRole } from './utils/author-role'
 
@@ -159,7 +161,6 @@ export class FunctionResultContent extends KernelContent {
    */
   toChatMessageContent(): any {
     // Dynamic import to avoid circular dependency
-    const { ChatMessageContent } = require('./chat-message-content.js')
     return new ChatMessageContent({
       role: AuthorRole.TOOL,
       items: [this],
@@ -171,7 +172,6 @@ export class FunctionResultContent extends KernelContent {
    */
   toStreamingChatMessageContent(): any {
     // Dynamic import to avoid circular dependency
-    const { StreamingChatMessageContent } = require('./streaming-chat-message-content.js')
     return new StreamingChatMessageContent({
       role: AuthorRole.TOOL,
       choiceIndex: 0,
