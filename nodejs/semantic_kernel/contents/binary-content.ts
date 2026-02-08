@@ -44,7 +44,7 @@ class DataUri {
     })
   }
 
-  toString(metadata?: Record<string, any>): string {
+  toString(_metadata?: Record<string, any>): string {
     if (!this.dataBytes && !this.dataString) {
       return ''
     }
