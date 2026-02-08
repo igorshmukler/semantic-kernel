@@ -146,3 +146,23 @@ export class TemplateRenderException extends BlockRenderException {
     this.name = 'TemplateRenderException'
   }
 }
+
+/**
+ * An invalid HandlebarsTemplate syntax was found.
+ */
+export class HandlebarsTemplateSyntaxError extends BlockSyntaxError {
+  constructor(message: string) {
+    super(message)
+    this.name = 'HandlebarsTemplateSyntaxError'
+  }
+}
+
+/**
+ * An error occurred while rendering a HandlebarsTemplate.
+ */
+export class HandlebarsTemplateRenderException extends BlockRenderException {
+  constructor(message: string) {
+    super(message)
+    this.name = 'HandlebarsTemplateRenderException'
+  }
+}
