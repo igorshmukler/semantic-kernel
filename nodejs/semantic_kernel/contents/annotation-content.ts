@@ -99,7 +99,7 @@ export class AnnotationContent extends KernelContent {
   private parseCitationType(type: string | CitationType): CitationType | undefined {
     if (typeof type === 'string') {
       const normalizedType = type.toLowerCase()
-      for (const [key, value] of Object.entries(CitationType)) {
+      for (const [_key, value] of Object.entries(CitationType)) {
         if (value === normalizedType) {
           return value as CitationType
         }
