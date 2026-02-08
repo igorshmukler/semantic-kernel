@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { BINARY_CONTENT_TAG } from './const'
 import { KernelContent } from './kernel-content'
 
@@ -315,7 +315,6 @@ export abstract class BinaryContent extends KernelContent {
    * Write the data to a file.
    */
   writeToFile(path: string): void {
-    const { writeFileSync } = require('fs')
     writeFileSync(path, this.data)
   }
 
