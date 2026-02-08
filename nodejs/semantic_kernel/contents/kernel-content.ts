@@ -52,7 +52,7 @@ export abstract class KernelContent {
    *
    * @param element - The element to create from
    */
-  static fromElement(element: any): KernelContent {
+  static fromElement(_element: any): KernelContent {
     throw new Error('fromElement must be implemented by subclass')
   }
 
