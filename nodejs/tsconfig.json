@@ -27,16 +27,6 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": [
-    "semantic_kernel/**/*",
-    "index.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.spec.ts",
-    "**/*.test.ts",
-    "tests",
-    "samples"
-  ]
+  "include": ["semantic_kernel/**/*", "index.ts"],
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts", "tests", "samples"]
 }

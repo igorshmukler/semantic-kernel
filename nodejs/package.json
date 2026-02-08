@@ -22,6 +22,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\"",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
+    "publish": "npm publish",
     "dev": "tsx watch samples/concepts/index.ts"
   },
   "keywords": [

@@ -1,6 +1,7 @@
 # Get Started with Semantic Kernel for Node.js/TypeScript
 
 Highlights
+
 - Flexible Agent Framework: build, orchestrate, and deploy AI agents and multi-agent systems
 - Multi-Agent Systems: Model workflows and collaboration between AI specialists
 - Plugin Ecosystem: Extend with TypeScript, OpenAPI, Model Context Protocol (MCP), and more
@@ -20,6 +21,7 @@ pnpm add semantic-kernel
 ```
 
 Supported Platforms:
+
 - Node.js: 18+
 - TypeScript: 5.0+
 - OS: Windows, macOS, Linux
@@ -42,11 +44,11 @@ You can also override environment variables by explicitly passing configuration 
 
 ```typescript
 const chatService = new AzureChatCompletion({
-    apiKey: '...',
-    endpoint: '...',
-    deploymentName: '...',
-    apiVersion: '...',
-});
+  apiKey: '...',
+  endpoint: '...',
+  deploymentName: '...',
+  apiVersion: '...',
+})
 ```
 
 See the following [setup guide](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/concepts/setup) for more information.
@@ -56,28 +58,28 @@ See the following [setup guide](https://github.com/microsoft/semantic-kernel/tre
 Create prompt functions and invoke them via the `Kernel`:
 
 ```typescript
-import { Kernel } from 'semantic-kernel';
-import { OpenAIChatCompletion } from 'semantic-kernel/connectors/ai/openai';
+import { Kernel } from 'semantic-kernel'
+import { OpenAIChatCompletion } from 'semantic-kernel/connectors/ai/openai'
 
-const kernel = new Kernel();
-kernel.addService('chat', new OpenAIChatCompletion());
+const kernel = new Kernel()
+kernel.addService('chat', new OpenAIChatCompletion())
 
 const prompt = `
 1) A robot may not injure a human being...
 2) A robot must obey orders given it by human beings...
 3) A robot must protect its own existence...
 
-Give me the TLDR in exactly {{$num_words}} words.`;
+Give me the TLDR in exactly {{$num_words}} words.`
 
 async function main() {
-    const result = await kernel.invokePrompt({ 
-        prompt, 
-        arguments: { num_words: 5 } 
-    });
-    console.log(result?.value);
+  const result = await kernel.invokePrompt({
+    prompt,
+    arguments: { num_words: 5 },
+  })
+  console.log(result?.value)
 }
 
-main();
+main()
 // Output: Protect humans, obey, self-preserve, prioritized.
 ```
 
@@ -86,28 +88,28 @@ main();
 You can use the AI service classes directly for advanced workflows:
 
 ```typescript
-import { OpenAIChatCompletion } from 'semantic-kernel/connectors/ai/openai';
-import { ChatHistory } from 'semantic-kernel/contents';
+import { OpenAIChatCompletion } from 'semantic-kernel/connectors/ai/openai'
+import { ChatHistory } from 'semantic-kernel/contents'
 
 async function main() {
-    const service = new OpenAIChatCompletion();
-    const settings = {
-        temperature: 0.7,
-        maxTokens: 150,
-    };
+  const service = new OpenAIChatCompletion()
+  const settings = {
+    temperature: 0.7,
+    maxTokens: 150,
+  }
 
-    const chatHistory = new ChatHistory({ 
-        systemMessage: "You are a helpful assistant." 
-    });
-    chatHistory.addUserMessage("Write a haiku about Semantic Kernel.");
-    
-    const response = await service.getChatMessageContent({
-        chatHistory,
-        settings,
-    });
-    console.log(response.content);
+  const chatHistory = new ChatHistory({
+    systemMessage: 'You are a helpful assistant.',
+  })
+  chatHistory.addUserMessage('Write a haiku about Semantic Kernel.')
 
-    /*
+  const response = await service.getChatMessageContent({
+    chatHistory,
+    settings,
+  })
+  console.log(response.content)
+
+  /*
     Output:
 
     Thoughts weave through context,  
@@ -116,7 +118,7 @@ async function main() {
     */
 }
 
-main();
+main()
 ```
 
 ## 4. Build an Agent with Plugins and Tools
@@ -124,60 +126,58 @@ main();
 Enhance your agent with custom tools (plugins) and structured output:
 
 ```typescript
-import { ChatCompletionAgent } from 'semantic-kernel/agents';
-import { AzureChatCompletion } from 'semantic-kernel/connectors/ai/azure-openai';
-import { kernelFunction } from 'semantic-kernel/functions';
+import { ChatCompletionAgent } from 'semantic-kernel/agents'
+import { AzureChatCompletion } from 'semantic-kernel/connectors/ai/azure-openai'
+import { kernelFunction } from 'semantic-kernel/functions'
 
 class MenuPlugin {
-    @kernelFunction({ 
-        description: "Provides a list of specials from the menu." 
-    })
-    getSpecials(): string {
-        return `
+  @kernelFunction({
+    description: 'Provides a list of specials from the menu.',
+  })
+  getSpecials(): string {
+    return `
         Special Soup: Clam Chowder
         Special Salad: Cobb Salad
         Special Drink: Chai Tea
-        `;
-    }
+        `
+  }
 
-    @kernelFunction({ 
-        description: "Provides the price of the requested menu item." 
-    })
-    getItemPrice(menuItem: string): string {
-        return "$9.99";
-    }
+  @kernelFunction({
+    description: 'Provides the price of the requested menu item.',
+  })
+  getItemPrice(menuItem: string): string {
+    return '$9.99'
+  }
 }
 
 interface MenuItem {
-    price: number;
-    name: string;
+  price: number
+  name: string
 }
 
 async function main() {
-    // Configure structured outputs format
-    const settings = {
-        responseFormat: MenuItem,
-    };
+  // Configure structured outputs format
+  const settings = {
+    responseFormat: MenuItem,
+  }
 
-    // Create agent with plugin and settings
-    const agent = new ChatCompletionAgent({
-        service: new AzureChatCompletion(),
-        name: "SK-Assistant",
-        instructions: "You are a helpful assistant.",
-        plugins: [new MenuPlugin()],
-        arguments: { settings },
-    });
+  // Create agent with plugin and settings
+  const agent = new ChatCompletionAgent({
+    service: new AzureChatCompletion(),
+    name: 'SK-Assistant',
+    instructions: 'You are a helpful assistant.',
+    plugins: [new MenuPlugin()],
+    arguments: { settings },
+  })
 
-    const response = await agent.getResponse(
-        "What is the price of the soup special?"
-    );
-    console.log(response.content);
+  const response = await agent.getResponse('What is the price of the soup special?')
+  console.log(response.content)
 
-    // Output:
-    // The price of the Clam Chowder, which is the soup special, is $9.99.
+  // Output:
+  // The price of the Clam Chowder, which is the soup special, is $9.99.
 }
 
-main();
+main()
 ```
 
 You can explore additional getting started agent samples [here](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/getting_started_with_agents).
@@ -187,54 +187,50 @@ You can explore additional getting started agent samples [here](https://github.c
 Coordinate a group of agents to iteratively solve a problem or refine content together:
 
 ```typescript
-import { 
-    ChatCompletionAgent, 
-    GroupChatOrchestration, 
-    RoundRobinGroupChatManager 
-} from 'semantic-kernel/agents';
-import { InProcessRuntime } from 'semantic-kernel/agents/runtime';
-import { AzureChatCompletion } from 'semantic-kernel/connectors/ai/azure-openai';
+import { ChatCompletionAgent, GroupChatOrchestration, RoundRobinGroupChatManager } from 'semantic-kernel/agents'
+import { InProcessRuntime } from 'semantic-kernel/agents/runtime'
+import { AzureChatCompletion } from 'semantic-kernel/connectors/ai/azure-openai'
 
 function getAgents() {
-    return [
-        new ChatCompletionAgent({
-            name: "Writer",
-            instructions: "You are a creative content writer. Generate and refine slogans based on feedback.",
-            service: new AzureChatCompletion(),
-        }),
-        new ChatCompletionAgent({
-            name: "Reviewer",
-            instructions: "You are a critical reviewer. Provide detailed feedback on proposed slogans.",
-            service: new AzureChatCompletion(),
-        }),
-    ];
+  return [
+    new ChatCompletionAgent({
+      name: 'Writer',
+      instructions: 'You are a creative content writer. Generate and refine slogans based on feedback.',
+      service: new AzureChatCompletion(),
+    }),
+    new ChatCompletionAgent({
+      name: 'Reviewer',
+      instructions: 'You are a critical reviewer. Provide detailed feedback on proposed slogans.',
+      service: new AzureChatCompletion(),
+    }),
+  ]
 }
 
 async function main() {
-    const agents = getAgents();
-    const groupChat = new GroupChatOrchestration({
-        members: agents,
-        manager: new RoundRobinGroupChatManager({ maxRounds: 5 }),
-    });
-    
-    const runtime = new InProcessRuntime();
-    runtime.start();
-    
-    const result = await groupChat.invoke({
-        task: "Create a slogan for a new electric SUV that is affordable and fun to drive.",
-        runtime,
-    });
-    
-    const value = await result.get();
-    console.log(`Final Slogan: ${value}`);
+  const agents = getAgents()
+  const groupChat = new GroupChatOrchestration({
+    members: agents,
+    manager: new RoundRobinGroupChatManager({ maxRounds: 5 }),
+  })
 
-    // Example Output:
-    // Final Slogan: "Feel the Charge: Adventure Meets Affordability in Your New Electric SUV!"
+  const runtime = new InProcessRuntime()
+  runtime.start()
 
-    await runtime.stopWhenIdle();
+  const result = await groupChat.invoke({
+    task: 'Create a slogan for a new electric SUV that is affordable and fun to drive.',
+    runtime,
+  })
+
+  const value = await result.get()
+  console.log(`Final Slogan: ${value}`)
+
+  // Example Output:
+  // Final Slogan: "Feel the Charge: Adventure Meets Affordability in Your New Electric SUV!"
+
+  await runtime.stopWhenIdle()
 }
 
-main();
+main()
 ```
 
 For orchestration-focused examples, see [these orchestration samples](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/getting_started_with_agents/multi_agent_orchestration).
@@ -244,37 +240,37 @@ For orchestration-focused examples, see [these orchestration samples](https://gi
 Get streaming responses for better user experience:
 
 ```typescript
-import { Kernel } from 'semantic-kernel';
-import { OpenAIChatCompletion } from 'semantic-kernel/connectors/ai/openai';
+import { Kernel } from 'semantic-kernel'
+import { OpenAIChatCompletion } from 'semantic-kernel/connectors/ai/openai'
 
-const kernel = new Kernel();
-kernel.addService('chat', new OpenAIChatCompletion());
+const kernel = new Kernel()
+kernel.addService('chat', new OpenAIChatCompletion())
 
 async function main() {
-    const prompt = "Write a short story about a robot learning to paint.";
-    
-    for await (const chunk of kernel.invokePromptStream({ prompt })) {
-        if (Array.isArray(chunk)) {
-            for (const part of chunk) {
-                process.stdout.write(part.content || '');
-            }
-        }
+  const prompt = 'Write a short story about a robot learning to paint.'
+
+  for await (const chunk of kernel.invokePromptStream({ prompt })) {
+    if (Array.isArray(chunk)) {
+      for (const part of chunk) {
+        process.stdout.write(part.content || '')
+      }
     }
+  }
 }
 
-main();
+main()
 ```
 
 ## More Examples & Samples
 
-- [Getting Started with Agents](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/getting_started_with_agents): Practical agent orchestration and tool use  
-- [Getting Started with Processes](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/getting_started_with_processes): Modeling structured workflows with the Process framework  
-- [Concept Samples](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/concepts): Advanced scenarios, integrations, and SK patterns  
+- [Getting Started with Agents](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/getting_started_with_agents): Practical agent orchestration and tool use
+- [Getting Started with Processes](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/getting_started_with_processes): Modeling structured workflows with the Process framework
+- [Concept Samples](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/concepts): Advanced scenarios, integrations, and SK patterns
 
 ## Semantic Kernel Documentation
 
-- [Getting Started with Semantic Kernel](https://learn.microsoft.com/en-us/semantic-kernel/get-started/quick-start-guide)  
-- [Agent Framework Guide](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/)  
+- [Getting Started with Semantic Kernel](https://learn.microsoft.com/en-us/semantic-kernel/get-started/quick-start-guide)
+- [Agent Framework Guide](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/)
 - [Process Framework Guide](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/process/process-framework)
 
 ## TypeScript-Specific Features
@@ -284,14 +280,14 @@ main();
 Semantic Kernel for Node.js/TypeScript provides full type safety:
 
 ```typescript
-import type { KernelFunction, KernelArguments, FunctionResult } from 'semantic-kernel';
+import type { KernelFunction, KernelArguments, FunctionResult } from 'semantic-kernel'
 
 async function invokeWithTypes(
-    kernel: Kernel,
-    func: KernelFunction,
-    args: KernelArguments
+  kernel: Kernel,
+  func: KernelFunction,
+  args: KernelArguments
 ): Promise<FunctionResult | null> {
-    return await kernel.invoke({ function: func, arguments: args });
+  return await kernel.invoke({ function: func, arguments: args })
 }
 ```
 
@@ -301,14 +297,14 @@ All asynchronous operations use modern async/await patterns:
 
 ```typescript
 // Sequential execution
-const result1 = await kernel.invoke({ functionName: 'func1', pluginName: 'plugin1' });
-const result2 = await kernel.invoke({ functionName: 'func2', pluginName: 'plugin1' });
+const result1 = await kernel.invoke({ functionName: 'func1', pluginName: 'plugin1' })
+const result2 = await kernel.invoke({ functionName: 'func2', pluginName: 'plugin1' })
 
 // Parallel execution
 const [result1, result2] = await Promise.all([
-    kernel.invoke({ functionName: 'func1', pluginName: 'plugin1' }),
-    kernel.invoke({ functionName: 'func2', pluginName: 'plugin1' }),
-]);
+  kernel.invoke({ functionName: 'func1', pluginName: 'plugin1' }),
+  kernel.invoke({ functionName: 'func2', pluginName: 'plugin1' }),
+])
 ```
 
 ### Decorators
@@ -316,16 +312,16 @@ const [result1, result2] = await Promise.all([
 Use TypeScript decorators for cleaner plugin definitions:
 
 ```typescript
-import { kernelFunction, kernelParameter } from 'semantic-kernel/functions';
+import { kernelFunction, kernelParameter } from 'semantic-kernel/functions'
 
 class MathPlugin {
-    @kernelFunction({ description: "Adds two numbers" })
-    add(
-        @kernelParameter({ description: "First number" }) a: number,
-        @kernelParameter({ description: "Second number" }) b: number
-    ): number {
-        return a + b;
-    }
+  @kernelFunction({ description: 'Adds two numbers' })
+  add(
+    @kernelParameter({ description: 'First number' }) a: number,
+    @kernelParameter({ description: 'Second number' }) b: number
+  ): number {
+    return a + b
+  }
 }
 ```
 
