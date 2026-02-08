@@ -1054,7 +1054,8 @@ export class OpenAIAssistantAgent extends Agent {
       throw new Error(
         'fromYaml requires YAML content to be parsed. Please install a YAML parsing library ' +
           '(e.g., "yaml" or "js-yaml") and parse the YAML before calling fromDict, or provide JSON format. ' +
-          `Parse error: ${jsonError}`
+          `Parse error: ${jsonError}`,
+        { cause: jsonError }
       )
     }
 
@@ -1140,7 +1141,8 @@ export class OpenAIAssistantAgent extends Agent {
           toolObjs.push(toolResult)
         } catch (error) {
           throw new Error(
-            `Failed to build tool of type '${toolSpec.type}': ${error instanceof Error ? error.message : String(error)}`
+            `Failed to build tool of type '${toolSpec.type}': ${error instanceof Error ? error.message : String(error)}`,
+            { cause: error }
           )
         }
       }
@@ -1167,7 +1169,9 @@ export class OpenAIAssistantAgent extends Agent {
         metadata: spec.extras,
       })
     } catch (error) {
-      throw new Error(`Failed to create OpenAI assistant: ${error instanceof Error ? error.message : String(error)}`)
+      throw new Error(`Failed to create OpenAI assistant: ${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+      })
     }
 
     return new OpenAIAssistantAgent({
