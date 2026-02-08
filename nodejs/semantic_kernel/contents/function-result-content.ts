@@ -1,13 +1,9 @@
-import { FUNCTION_RESULT_CONTENT_TAG, TEXT_CONTENT_TAG } from './const'
+import { FUNCTION_RESULT_CONTENT_TAG } from './const'
 import { KernelContent } from './kernel-content'
 import { TextContent } from './text-content'
 import { AuthorRole } from './utils/author-role'
 
 const DEFAULT_FULLY_QUALIFIED_NAME_SEPARATOR = '-'
-
-const TAG_CONTENT_MAP: Record<string, any> = {
-  [TEXT_CONTENT_TAG]: TextContent,
-}
 
 /**
  * This class represents function result content.
