@@ -759,7 +759,7 @@ export class Kernel extends EventEmitter {
     }
 
     // Apply cast function if provided
-    let finalVectors = castFunction ? vectors.map(castFunction) : vectors
+    const finalVectors = castFunction ? vectors.map(castFunction) : vectors
 
     // Store embeddings
     if (containerMode) {

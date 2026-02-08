@@ -132,7 +132,7 @@ export abstract class BinaryContent extends KernelContent {
     }
 
     // Validate URI if provided
-    let validatedUri = uri
+    const validatedUri = uri
     if (uri && existsSync(uri)) {
       const stats = statSync(uri)
       if (!stats.isFile()) {

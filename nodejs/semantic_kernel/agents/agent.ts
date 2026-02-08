@@ -840,7 +840,7 @@ export abstract class DeclarativeSpecMixin extends Agent {
     [key: string]: any
   }): Promise<Agent> {
     const { data, plugins } = options
-    let { kernel } = options
+    const { kernel } = options
 
     const [extracted, effectiveKernel] = this._normalizeSpecFields({
       kernel,

@@ -88,7 +88,7 @@ export class ChatMessageContent extends KernelContent {
     this.finishReason = finishReason
     this.status = status
 
-    let finalItems = items ? [...items] : []
+    const finalItems = items ? [...items] : []
 
     // If content is provided, create a TextContent item
     if (content) {

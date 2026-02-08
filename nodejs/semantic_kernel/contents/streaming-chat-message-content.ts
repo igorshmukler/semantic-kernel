@@ -59,7 +59,7 @@ export class StreamingChatMessageContent extends ChatMessageContent {
       metadata,
     } = options
 
-    let finalItems = items ? [...items] : []
+    const finalItems = items ? [...items] : []
 
     // If content is provided, create a StreamingTextContent item
     if (content) {

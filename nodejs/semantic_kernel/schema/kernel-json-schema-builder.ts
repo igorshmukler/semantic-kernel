@@ -190,7 +190,7 @@ export class KernelJsonSchemaBuilder {
     // Handle Object/Record types with specific value types
     if (this.isRecordType(parameterType)) {
       const valueType = this.getRecordValueType(parameterType)
-      let additionalProperties = this.build(valueType, { structuredOutput })
+      const additionalProperties = this.build(valueType, { structuredOutput })
 
       if (additionalProperties.type === 'object' && !additionalProperties.properties) {
         additionalProperties.properties = {}
