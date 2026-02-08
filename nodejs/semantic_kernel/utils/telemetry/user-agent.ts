@@ -1,3 +1,5 @@
+import * as packageJson from '../../../package.json'
+
 const USER_AGENT = 'User-Agent'
 
 // Note that if this environment variable does not exist, telemetry is enabled.
@@ -9,12 +11,11 @@ export const IS_TELEMETRY_ENABLED =
 
 export const HTTP_USER_AGENT = 'semantic-kernel-nodejs'
 
-let versionInfo = 'dev'
+let versionInfo
 
 try {
   // Try to load version from package.json
   // In a bundled environment, this may not work, so we use 'dev' as fallback
-  const packageJson = require('../../../package.json')
   versionInfo = packageJson.version || 'dev'
 } catch {
   // If package.json cannot be loaded, use 'dev'
