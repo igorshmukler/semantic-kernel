@@ -1,11 +1,8 @@
 import { Span, SpanStatusCode, trace } from '@opentelemetry/api'
-import {
-  Agent,
-  AgentResponseItem,
-  AuthorRole,
-  ChatMessageContent,
-  StreamingChatMessageContent,
-} from '../../../agents/agent'
+import { Agent, AgentResponseItem } from '../../../agents/agent'
+import { ChatMessageContent } from '../../../contents/chat-message-content'
+import { StreamingChatMessageContent } from '../../../contents/streaming-chat-message-content'
+import { AuthorRole } from '../../../contents/utils/author-role'
 import { ModelDiagnosticSettings } from '../model-diagnostics/model-diagnostics-settings'
 import * as genAiAttributes from './gen-ai-attributes'
 
