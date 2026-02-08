@@ -5,6 +5,7 @@ import {
   TemplateFormatTypes,
 } from './const'
 import { HandlebarsPromptTemplate } from './handlebars-prompt-template'
+import { KernelPromptTemplate } from './kernel-prompt-template'
 import { PromptTemplateBase } from './prompt-template-base'
 
 /**
@@ -15,6 +16,6 @@ import { PromptTemplateBase } from './prompt-template-base'
  */
 export const TEMPLATE_FORMAT_MAP: Record<TemplateFormatTypes, new (...args: any[]) => PromptTemplateBase> = {
   [HANDLEBARS_TEMPLATE_FORMAT_NAME]: HandlebarsPromptTemplate,
-  [KERNEL_TEMPLATE_FORMAT_NAME]: HandlebarsPromptTemplate, // Temporary: using Handlebars as fallback
+  [KERNEL_TEMPLATE_FORMAT_NAME]: KernelPromptTemplate, // Temporary: using Handlebars as fallback
   [JINJA2_TEMPLATE_FORMAT_NAME]: HandlebarsPromptTemplate, // Temporary: using Handlebars as fallback
 }
