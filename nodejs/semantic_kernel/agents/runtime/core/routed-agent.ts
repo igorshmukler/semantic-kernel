@@ -104,13 +104,13 @@ export function messageHandler<TAgent, TReceives, TProduces>(
 export function event<TAgent, TReceives>(
   options?: MessageHandlerOptions<TReceives>
 ): (
-  target: any,
-  propertyKey: string,
+  _target: any,
+  _propertyKey: string,
   descriptor: TypedPropertyDescriptor<(this: TAgent, message: TReceives, ctx: MessageContext) => Promise<void>>
 ) => void {
   return function (
-    target: any,
-    propertyKey: string,
+    _target: any,
+    _propertyKey: string,
     descriptor: TypedPropertyDescriptor<(this: TAgent, message: TReceives, ctx: MessageContext) => Promise<void>>
   ): void {
     const originalMethod = descriptor.value!
