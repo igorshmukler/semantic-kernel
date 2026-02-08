@@ -79,9 +79,7 @@ export function traceAgentGetResponse<T extends Agent>(
       return await originalMethod.call(this, messages, ...args)
     }
 
-    const agent = this
-
-    return await startAsCurrentSpan(agent, async (span: Span) => {
+    return await startAsCurrentSpan(this, async (span: Span) => {
       try {
         setAgentInvocationInput(span, messages)
         const response = await originalMethod.call(this, messages, ...args)
@@ -133,9 +131,7 @@ export function traceAgentInvocation<T extends Agent>(
       return
     }
 
-    const agent = this
-
-    const span = await startSpan(agent)
+    const span = await startSpan(this)
     setAgentInvocationInput(span, messages)
     try {
       const responses: ChatMessageContent[] = []
@@ -190,8 +186,6 @@ export function traceAgentStreamingInvocation<T extends Agent>(
       yield* originalMethod.call(this, messages, ...args)
       return
     }
-
-    const agent = this
 
     const span = await startSpan(agent)
     setAgentInvocationInput(span, messages)

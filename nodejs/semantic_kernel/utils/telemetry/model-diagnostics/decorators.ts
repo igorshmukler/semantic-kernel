@@ -74,12 +74,11 @@ export function traceChatCompletion(modelProvider: string) {
         return await originalMethod.call(this, chatHistory, settings, ...args)
       }
 
-      const completionService = this
       const span = getCompletionSpan(
         CHAT_COMPLETION_OPERATION,
-        completionService.aiModelId,
+        this.aiModelId,
         modelProvider,
-        completionService.serviceUrl?.() ?? null,
+        this.serviceUrl?.() ?? null,
         settings
       )
 
@@ -130,13 +129,12 @@ export function traceStreamingChatCompletion(modelProvider: string) {
         return
       }
 
-      const completionService = this
       const allMessages: Map<number, StreamingChatMessageContent[]> = new Map()
       const span = getCompletionSpan(
         CHAT_COMPLETION_OPERATION,
-        completionService.aiModelId,
+        this.aiModelId,
         modelProvider,
-        completionService.serviceUrl?.() ?? null,
+        this.serviceUrl?.() ?? null,
         settings
       )
 
@@ -181,11 +179,7 @@ export function traceStreamingChatCompletion(modelProvider: string) {
  *   GenAI models with specific model identified by ai_model_id.
  */
 export function traceTextCompletion(modelProvider: string) {
-  return function <T extends any>(
-    _target: T,
-    _propertyKey: string,
-    descriptor: PropertyDescriptor
-  ): PropertyDescriptor {
+  return function <T>(_target: T, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
     const originalMethod = descriptor.value
 
     descriptor.value = async function (
@@ -236,11 +230,7 @@ export function traceTextCompletion(modelProvider: string) {
  *   GenAI models with specific model identified by ai_model_id.
  */
 export function traceStreamingTextCompletion(modelProvider: string) {
-  return function <T extends any>(
-    _target: T,
-    _propertyKey: string,
-    descriptor: PropertyDescriptor
-  ): PropertyDescriptor {
+  return function <T>(_target: T, _propertyKey: string, descriptor: PropertyDescriptor): PropertyDescriptor {
     const originalMethod = descriptor.value
 
     descriptor.value = async function* (
