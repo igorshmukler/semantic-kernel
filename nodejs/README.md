@@ -51,8 +51,6 @@ const chatService = new AzureChatCompletion({
 })
 ```
 
-See the following [setup guide](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/concepts/setup) for more information.
-
 ## 2. Use the Kernel for Prompt Engineering
 
 Create prompt functions and invoke them via the `Kernel`:
@@ -180,8 +178,6 @@ async function main() {
 main()
 ```
 
-You can explore additional getting started agent samples [here](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/getting_started_with_agents).
-
 ## 5. Multi-Agent Orchestration
 
 Coordinate a group of agents to iteratively solve a problem or refine content together:
@@ -233,8 +229,6 @@ async function main() {
 main()
 ```
 
-For orchestration-focused examples, see [these orchestration samples](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/getting_started_with_agents/multi_agent_orchestration).
-
 ## 6. Stream Responses for Real-Time Output
 
 Get streaming responses for better user experience:
@@ -263,9 +257,7 @@ main()
 
 ## More Examples & Samples
 
-- [Getting Started with Agents](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/getting_started_with_agents): Practical agent orchestration and tool use
-- [Getting Started with Processes](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/getting_started_with_processes): Modeling structured workflows with the Process framework
-- [Concept Samples](https://github.com/microsoft/semantic-kernel/tree/main/nodejs/samples/concepts): Advanced scenarios, integrations, and SK patterns
+Additional samples and examples are coming soon.
 
 ## Semantic Kernel Documentation
 
