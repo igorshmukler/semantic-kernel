@@ -316,6 +316,7 @@ export class ChatHistory {
 
       return new ChatHistory(messages)
     } catch (error) {
+      console.error('Failed to parse rendered prompt as XML:', error)
       // Failed to parse, treat as plain text user message
       return new ChatHistory([
         new ChatMessageContent({

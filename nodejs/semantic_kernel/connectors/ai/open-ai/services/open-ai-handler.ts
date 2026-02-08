@@ -150,9 +150,13 @@ export abstract class OpenAIHandler {
       }
     } catch (error: any) {
       if (error.code === 'content_filter') {
-        throw new Error(`${this.constructor.name} service encountered a content error: ${error.message}`)
+        throw new Error(`${this.constructor.name} service encountered a content error: ${error.message}`, {
+          cause: error,
+        })
       }
-      throw new Error(`${this.constructor.name} service failed to complete the prompt: ${error.message}`)
+      throw new Error(`${this.constructor.name} service failed to complete the prompt: ${error.message}`, {
+        cause: error,
+      })
     }
   }
 
@@ -169,7 +173,9 @@ export abstract class OpenAIHandler {
       this.storeUsage(response)
       return response.data.map((item) => item.embedding)
     } catch (error: any) {
-      throw new Error(`${this.constructor.name} service failed to generate embeddings: ${error.message}`)
+      throw new Error(`${this.constructor.name} service failed to generate embeddings: ${error.message}`, {
+        cause: error,
+      })
     }
   }
 
@@ -187,7 +193,7 @@ export abstract class OpenAIHandler {
       this.storeUsage(response)
       return response
     } catch (error: any) {
-      throw new Error(`Failed to generate image: ${error.message}`)
+      throw new Error(`Failed to generate image: ${error.message}`, { cause: error })
     }
   }
 
@@ -218,7 +224,7 @@ export abstract class OpenAIHandler {
       this.storeUsage(response)
       return response
     } catch (error: any) {
-      throw new Error(`Failed to edit image: ${error.message}`)
+      throw new Error(`Failed to edit image: ${error.message}`, { cause: error })
     }
   }
 
@@ -247,7 +253,7 @@ export abstract class OpenAIHandler {
 
       return response
     } catch (error: any) {
-      throw new Error(`${this.constructor.name} service failed to transcribe audio: ${error.message}`)
+      throw new Error(`${this.constructor.name} service failed to transcribe audio: ${error.message}`, { cause: error })
     }
   }
 
@@ -262,7 +268,7 @@ export abstract class OpenAIHandler {
       const response = await this.client.audio.speech.create(settings.prepareSettingsDict() as any)
       return response as unknown as Response
     } catch (error: any) {
-      throw new Error(`${this.constructor.name} service failed to generate audio: ${error.message}`)
+      throw new Error(`${this.constructor.name} service failed to generate audio: ${error.message}`, { cause: error })
     }
   }
 

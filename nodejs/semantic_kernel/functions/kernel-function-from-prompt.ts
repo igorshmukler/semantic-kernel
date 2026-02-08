@@ -118,7 +118,7 @@ export class KernelFunctionFromPrompt extends KernelFunction {
         returnParameter: PROMPT_RETURN_PARAM,
       })
     } catch (exc) {
-      throw new Error(`Failed to create KernelFunctionMetadata: ${exc}`)
+      throw new Error(`Failed to create KernelFunctionMetadata: ${exc}`, { cause: exc })
     }
 
     super(metadata)
