@@ -1,15 +1,8 @@
+import { ChatMessageContent } from '../../contents/chat-message-content'
+import { StreamingChatMessageContent } from '../../contents/streaming-chat-message-content'
+import { AuthorRole } from '../../contents/utils/author-role'
 import { Kernel } from '../../kernel'
-import {
-  Agent,
-  AgentResponseItem,
-  AgentSpec,
-  AgentThread,
-  AuthorRole,
-  ChatMessageContent,
-  IntermediateMessageCallback,
-  StreamingChatMessageContent,
-  ToolSpec,
-} from '../agent'
+import { Agent, AgentResponseItem, AgentSpec, AgentThread, IntermediateMessageCallback, ToolSpec } from '../agent'
 
 /**
  * Tool builder function type.
@@ -861,6 +854,7 @@ export class OpenAIAssistantAgent extends Agent {
             if (contentPart.type === 'text' && contentPart.text?.value) {
               const streamingMessage = new StreamingChatMessageContent({
                 role: AuthorRole.ASSISTANT,
+                choiceIndex: 0,
                 content: contentPart.text.value,
                 metadata: {
                   thread_id: assistantThread.id,
@@ -905,6 +899,7 @@ export class OpenAIAssistantAgent extends Agent {
             if (toolCall.type === 'code_interpreter' && toolCall.code_interpreter?.input) {
               const streamingMessage = new StreamingChatMessageContent({
                 role: AuthorRole.TOOL,
+                choiceIndex: 0,
                 content: toolCall.code_interpreter.input,
                 metadata: {
                   type: 'code_interpreter',
