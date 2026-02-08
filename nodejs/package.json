@@ -18,7 +18,7 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .prettierignore",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\" --ignore-path .prettierignore",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
