@@ -187,7 +187,7 @@ export function traceAgentStreamingInvocation<T extends Agent>(
       return
     }
 
-    const span = await startSpan(agent)
+    const span = await startSpan(this)
     setAgentInvocationInput(span, messages)
     try {
       const chunks: StreamingChatMessageContent[] = []
