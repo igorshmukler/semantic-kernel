@@ -216,7 +216,7 @@ export abstract class RoutedAgent extends BaseAgent {
    * @param message - The message that was not handled.
    * @param ctx - The context of the message.
    */
-  protected async onUnhandledMessage(message: any, ctx: MessageContext): Promise<void> {
+  protected async onUnhandledMessage(message: any, _ctx: MessageContext): Promise<void> {
     console.info(`Unhandled message: ${JSON.stringify(message)}`)
   }
 
