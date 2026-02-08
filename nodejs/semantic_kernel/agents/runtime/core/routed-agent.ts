@@ -114,7 +114,6 @@ export function event<TAgent, TReceives>(
     descriptor: TypedPropertyDescriptor<(this: TAgent, message: TReceives, ctx: MessageContext) => Promise<void>>
   ): void {
     const originalMethod = descriptor.value!
-    const strict = options?.strict ?? true
     const match = options?.match
 
     const handler = originalMethod as any as MessageHandler<TAgent, TReceives, void>
@@ -137,17 +136,16 @@ export function event<TAgent, TReceives>(
 export function rpc<TAgent, TReceives, TProduces>(
   options?: MessageHandlerOptions<TReceives>
 ): (
-  target: any,
-  propertyKey: string,
+  _target: any,
+  _propertyKey: string,
   descriptor: TypedPropertyDescriptor<(this: TAgent, message: TReceives, ctx: MessageContext) => Promise<TProduces>>
 ) => void {
   return function (
-    target: any,
-    propertyKey: string,
+    _target: any,
+    _propertyKey: string,
     descriptor: TypedPropertyDescriptor<(this: TAgent, message: TReceives, ctx: MessageContext) => Promise<TProduces>>
   ): void {
     const originalMethod = descriptor.value!
-    const strict = options?.strict ?? true
     const match = options?.match
 
     const handler = originalMethod as any as MessageHandler<TAgent, TReceives, TProduces>
