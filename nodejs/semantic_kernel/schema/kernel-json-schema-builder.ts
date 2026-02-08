@@ -172,7 +172,7 @@ export class KernelJsonSchemaBuilder {
     description?: string,
     structuredOutput: boolean = false
   ): Record<string, any> {
-    let schema: Record<string, any> = {}
+    let schema: Record<string, any>
 
     // Handle Array types
     if (this.isArrayType(parameterType)) {
@@ -276,7 +276,8 @@ export class KernelJsonSchemaBuilder {
       return schema
     } catch (error) {
       throw new Error(
-        `Failed to get enum values for ${enumType}: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to get enum values for ${enumType}: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
       )
     }
   }

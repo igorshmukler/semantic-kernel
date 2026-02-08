@@ -19,6 +19,7 @@ const DEFAULT_RC_NOTE =
 /**
  * Type representing a class constructor or a function
  */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 type DecoratorTarget = Function | (new (...args: any[]) => any)
 
 /**

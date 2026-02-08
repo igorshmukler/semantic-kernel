@@ -159,12 +159,13 @@ export class FunctionCallContent extends KernelContent {
     try {
       return JSON.parse(this.arguments)
     } catch (error) {
+      console.error('Failed to parse FunctionCallContent arguments as JSON:', error)
       // Try preprocessing: replace single quotes with double quotes
       try {
         const preprocessed = this.arguments.replace(/(?<!\\)'/g, '"').replace(/\\'/g, "'")
         return JSON.parse(preprocessed)
       } catch (error2) {
-        throw new Error('Function Call arguments are not valid JSON even after preprocessing.')
+        throw new Error('Function Call arguments are not valid JSON even after preprocessing.', { cause: error2 })
       }
     }
   }
