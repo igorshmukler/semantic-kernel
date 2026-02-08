@@ -32,18 +32,9 @@ export class FunctionCallContent extends KernelContent {
       metadata?: Record<string, any>
     } = {}
   ) {
-    let {
-      id,
-      callId,
-      index,
-      name,
-      functionName,
-      pluginName,
-      arguments: args,
-      innerContent,
-      aiModelId,
-      metadata,
-    } = options
+    const { id, callId, index, arguments: args, innerContent, aiModelId, metadata } = options
+
+    let { name, functionName, pluginName } = options
 
     // Handle name construction and parsing
     if (functionName && pluginName && !name) {

@@ -35,7 +35,8 @@ export class FunctionResultContent extends KernelContent {
       metadata?: Record<string, any>
     } = {}
   ) {
-    let { id, callId, name, functionName, pluginName, result, encoding, innerContent, aiModelId, metadata } = options
+    const { id, callId, result, encoding, innerContent, aiModelId, metadata } = options
+    let { name, functionName, pluginName } = options
 
     // Handle name construction and parsing
     if (functionName && pluginName && !name) {
