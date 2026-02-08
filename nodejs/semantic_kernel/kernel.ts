@@ -306,9 +306,21 @@ export class Kernel extends EventEmitter {
     [key: string]: any
   }): Promise<FunctionResult | null> {
     let { function: func, arguments: args } = options
-    const { functionName, pluginName, metadata, ...kwargs } = options
+    const { function: _func, arguments: _args, functionName, pluginName, metadata, ...kwargs } = options
 
-    args = args || new KernelArgumentsClass()
+    // Ensure args is a KernelArguments instance
+    if (!args || !(args instanceof KernelArgumentsClass)) {
+      const newArgs = new KernelArgumentsClass()
+      if (args) {
+        // If args is a plain object, copy its properties
+        if (typeof args === 'object') {
+          for (const [key, value] of Object.entries(args)) {
+            newArgs.set(key, value)
+          }
+        }
+      }
+      args = newArgs
+    }
     // Merge kwargs into arguments
     for (const [key, value] of Object.entries(kwargs)) {
       args.set(key, value)
@@ -347,8 +359,8 @@ export class Kernel extends EventEmitter {
   }): AsyncGenerator<StreamingContentMixin[] | FunctionResult> {
     let { function: func, arguments: args, returnFunctionResults } = options
     const {
-      function: _function,
-      arguments: _arguments,
+      function: _func,
+      arguments: _args,
       returnFunctionResults: _returnFunctionResults,
       functionName,
       pluginName,
@@ -356,7 +368,19 @@ export class Kernel extends EventEmitter {
       ...kwargs
     } = options
 
-    args = args || new KernelArgumentsClass()
+    // Ensure args is a KernelArguments instance
+    if (!args || !(args instanceof KernelArgumentsClass)) {
+      const newArgs = new KernelArgumentsClass()
+      if (args) {
+        // If args is a plain object, copy its properties
+        if (typeof args === 'object') {
+          for (const [key, value] of Object.entries(args)) {
+            newArgs.set(key, value)
+          }
+        }
+      }
+      args = newArgs
+    }
 
     // Merge kwargs into arguments
     for (const [key, value] of Object.entries(kwargs)) {
@@ -430,7 +454,21 @@ export class Kernel extends EventEmitter {
       ...kwargs
     } = options
 
-    const finalArgs = args || new KernelArgumentsClass()
+    // Ensure args is a KernelArguments instance
+    let finalArgs: KernelArguments
+    if (!args || !(args instanceof KernelArgumentsClass)) {
+      finalArgs = new KernelArgumentsClass()
+      if (args) {
+        // If args is a plain object, copy its properties
+        if (typeof args === 'object') {
+          for (const [key, value] of Object.entries(args)) {
+            finalArgs.set(key, value)
+          }
+        }
+      }
+    } else {
+      finalArgs = args
+    }
     for (const [key, value] of Object.entries(kwargs)) {
       finalArgs.set(key, value)
     }
@@ -472,7 +510,21 @@ export class Kernel extends EventEmitter {
       ...kwargs
     } = options
 
-    const finalArgs = args || new KernelArgumentsClass()
+    // Ensure args is a KernelArguments instance
+    let finalArgs: KernelArguments
+    if (!args || !(args instanceof KernelArgumentsClass)) {
+      finalArgs = new KernelArgumentsClass()
+      if (args) {
+        // If args is a plain object, copy its properties
+        if (typeof args === 'object') {
+          for (const [key, value] of Object.entries(args)) {
+            finalArgs.set(key, value)
+          }
+        }
+      }
+    } else {
+      finalArgs = args
+    }
     for (const [key, value] of Object.entries(kwargs)) {
       finalArgs.set(key, value)
     }
@@ -539,7 +591,21 @@ export class Kernel extends EventEmitter {
         functionCall.functionName || functionCall.name
       )
 
-      const argsCloned = args ? args.merge({}) : new KernelArgumentsClass()
+      // Ensure args is a KernelArguments instance before cloning
+      let argsCloned: KernelArguments
+      if (!args || !(args instanceof KernelArgumentsClass)) {
+        argsCloned = new KernelArgumentsClass()
+        if (args) {
+          // If args is a plain object, copy its properties
+          if (typeof args === 'object') {
+            for (const [key, value] of Object.entries(args)) {
+              argsCloned.set(key, value)
+            }
+          }
+        }
+      } else {
+        argsCloned = args.merge({})
+      }
       let parsedArgs: KernelArguments | null = null
 
       try {

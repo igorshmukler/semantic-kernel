@@ -1,3 +1,5 @@
+import OpenAI from 'openai'
+import type { Stream } from 'openai/streaming'
 import { AnnotationContent } from '../../../../contents/annotation-content'
 import { ChatHistory } from '../../../../contents/chat-history'
 import { ChatMessageContent } from '../../../../contents/chat-message-content'
@@ -11,24 +13,212 @@ import { FinishReason } from '../../../../contents/utils/finish-reason'
 import { AutoFunctionInvocationContext } from '../../../../filters/auto-function-invocation/auto-function-invocation-context'
 import { KernelArguments } from '../../../../functions/kernel-arguments'
 import { Kernel } from '../../../../kernel'
+import { KernelJsonSchemaBuilder } from '../../../../schema/kernel-json-schema-builder'
 import { PromptExecutionSettings } from '../../../../services/ai-service-client-base'
+import { generateStructuredOutputResponseFormatSchema } from '../../../utils/structured-output-schema'
+import { ChatCompletionClientBase } from '../../chat-completion-client-base'
 import { CompletionUsage } from '../../completion-usage'
 import { FunctionCallChoiceConfiguration } from '../../function-call-choice-configuration'
 import { updateSettingsFromFunctionCallConfiguration } from '../../function-calling-utils'
 import { FunctionChoiceBehavior } from '../../function-choice-behavior'
 import { FunctionChoiceType } from '../../function-choice-type'
 import { OpenAIChatPromptExecutionSettings } from '../prompt-execution-settings/open-ai-prompt-execution-settings'
-import { OpenAIHandler } from './open-ai-handler'
+import { OpenAIModelTypes } from './open-ai-model-types'
 
 /**
  * OpenAI chat completion base class.
  */
-export abstract class OpenAIChatCompletionBase extends OpenAIHandler {
+export abstract class OpenAIChatCompletionBase extends ChatCompletionClientBase {
+  // Properties from OpenAIHandler
+  client: OpenAI
+  aiModelType: OpenAIModelTypes = OpenAIModelTypes.CHAT
+  promptTokens: number = 0
+  completionTokens: number = 0
+  totalTokens: number = 0
+
   static readonly MODEL_PROVIDER_NAME = 'openai'
   static readonly SUPPORTS_FUNCTION_CALLING = true
 
-  aiModelId: string = ''
+  // Note: aiModelId and serviceId are inherited from AIServiceClientBase
   instructionRole: string = 'system'
+
+  /**
+   * Constructor for OpenAIChatCompletionBase.
+   * @param client - The OpenAI client instance
+   * @param aiModelId - The AI model ID
+   * @param serviceId - The service ID (optional, defaults to aiModelId)
+   * @param aiModelType - The AI model type (default: CHAT)
+   */
+  constructor(
+    client: OpenAI,
+    aiModelId: string,
+    serviceId?: string,
+    aiModelType: OpenAIModelTypes = OpenAIModelTypes.CHAT
+  ) {
+    super({ aiModelId, serviceId })
+    this.client = client
+    this.aiModelType = aiModelType
+  }
+
+  // #region Methods from OpenAIHandler
+
+  /**
+   * Send a request to the OpenAI API.
+   *
+   * @param settings - The prompt execution settings
+   * @returns The response from the OpenAI API
+   */
+  protected async sendRequest(settings: PromptExecutionSettings): Promise<any> {
+    if (this.aiModelType === OpenAIModelTypes.TEXT || this.aiModelType === OpenAIModelTypes.CHAT) {
+      return await this.sendCompletionRequest(settings as any)
+    }
+
+    throw new Error(`Model type ${this.aiModelType} is not supported`)
+  }
+
+  /**
+   * Execute the appropriate call to OpenAI models.
+   *
+   * @param settings - The prompt execution settings
+   * @returns The completion response
+   */
+  protected async sendCompletionRequest(
+    settings: any
+  ): Promise<
+    | OpenAI.Chat.ChatCompletion
+    | OpenAI.Completion
+    | Stream<OpenAI.Chat.Completions.ChatCompletionChunk>
+    | Stream<OpenAI.Completions.Completion>
+  > {
+    try {
+      const settingsDict = settings.prepareSettingsDict()
+
+      // Ensure the model parameter is set
+      if (!settingsDict.model) {
+        settingsDict.model = this.aiModelId
+      }
+
+      if (this.aiModelType === OpenAIModelTypes.CHAT) {
+        const chatSettings = settings as any
+        this.handleStructuredOutput(chatSettings, settingsDict)
+
+        if (chatSettings.tools === null || chatSettings.tools === undefined) {
+          delete settingsDict.parallelToolCalls
+        }
+
+        const response = await this.client.chat.completions.create(settingsDict as any)
+        this.storeUsage(response)
+        return response
+      } else {
+        const response = await this.client.completions.create(settingsDict as any)
+        this.storeUsage(response)
+        return response
+      }
+    } catch (error: any) {
+      if (error.code === 'content_filter') {
+        throw new Error(`${this.constructor.name} service encountered a content error: ${error.message}`, {
+          cause: error,
+        })
+      }
+      throw new Error(`${this.constructor.name} service failed to complete the prompt: ${error.message}`, {
+        cause: error,
+      })
+    }
+  }
+
+  /**
+   * Handle structured output for chat completions.
+   *
+   * @param requestSettings - The chat prompt execution settings
+   * @param settings - The settings dictionary to modify
+   */
+  protected handleStructuredOutput(requestSettings: any, settings: Record<string, any>): void {
+    const responseFormat = requestSettings.responseFormat
+
+    if (requestSettings.structuredJsonResponse && responseFormat) {
+      // Case 1: response_format is a class/constructor with a schema
+      if (typeof responseFormat === 'function' && this.hasSchema(responseFormat)) {
+        // For classes with schemas (e.g., Zod schemas)
+        settings.responseFormat = responseFormat
+      }
+      // Case 2: response_format is a type/class without built-in schema
+      else if (typeof responseFormat === 'function') {
+        const generatedSchema = KernelJsonSchemaBuilder.build(responseFormat, {
+          structuredOutput: true,
+        })
+
+        if (generatedSchema) {
+          settings.responseFormat = generateStructuredOutputResponseFormatSchema(responseFormat.name, generatedSchema)
+        }
+      }
+      // Case 3: response_format is a dictionary, pass it without modification
+      else if (typeof responseFormat === 'object' && responseFormat !== null) {
+        settings.responseFormat = responseFormat
+      }
+    }
+  }
+
+  /**
+   * Store the usage information from the response.
+   *
+   * @param response - The response from the OpenAI API
+   */
+  protected storeUsage(response: any): void {
+    // Handle image responses
+    if (response && 'created' in response && 'data' in response && response.usage) {
+      // This is likely an ImagesResponse
+      console.log(`OpenAI image usage: ${JSON.stringify(response.usage)}`)
+      if (response.usage.input_tokens !== undefined) {
+        this.promptTokens += response.usage.input_tokens
+      }
+      if (response.usage.total_tokens !== undefined) {
+        this.totalTokens += response.usage.total_tokens
+      }
+      if (response.usage.output_tokens !== undefined) {
+        this.completionTokens += response.usage.output_tokens
+      }
+      return
+    }
+
+    // Handle regular completion responses
+    if (response && response.usage && !this.isStream(response)) {
+      console.log(`OpenAI usage: ${JSON.stringify(response.usage)}`)
+
+      if (response.usage.prompt_tokens !== undefined) {
+        this.promptTokens += response.usage.prompt_tokens
+      }
+      if (response.usage.total_tokens !== undefined) {
+        this.totalTokens += response.usage.total_tokens
+      }
+      if (response.usage.completion_tokens !== undefined) {
+        this.completionTokens += response.usage.completion_tokens
+      }
+    }
+  }
+
+  /**
+   * Check if a value is a stream.
+   *
+   * @private
+   */
+  private isStream(value: any): boolean {
+    return (
+      value &&
+      typeof value === 'object' &&
+      (typeof value[Symbol.asyncIterator] === 'function' || typeof value.getReader === 'function')
+    )
+  }
+
+  /**
+   * Check if a type has a schema method or property.
+   *
+   * @private
+   */
+  private hasSchema(value: any): boolean {
+    return typeof value === 'function' && (value.schema !== undefined || value.prototype?.schema !== undefined)
+  }
+
+  // #endregion
 
   // #region Overriding base class methods
 

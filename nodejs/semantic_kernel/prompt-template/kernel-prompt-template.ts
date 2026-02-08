@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft. All rights reserved.
-
 import { TemplateRenderException } from '../exceptions/template-engine-exceptions'
 import { KernelArguments } from '../functions/kernel-arguments'
 import { Kernel } from '../kernel'

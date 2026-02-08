@@ -55,17 +55,11 @@ export class OpenAIChatCompletion extends OpenAIChatCompletionBase {
       })
 
     // Initialize the base class
-    super(openAIClient, OpenAIModelTypes.CHAT)
+    super(openAIClient, aiModelId || '', serviceId, OpenAIModelTypes.CHAT)
 
     // Set properties
-    this.aiModelId = aiModelId || ''
     if (instructionRole) {
       this.instructionRole = instructionRole
-    }
-
-    // Store serviceId if needed (implementation dependent)
-    if (serviceId) {
-      ;(this as any).serviceId = serviceId
     }
   }
 

@@ -12,7 +12,7 @@ import { PromptTemplateBase } from './prompt-template-base'
  * Map of template format names to their corresponding template classes.
  *
  * Note: Currently only Handlebars is fully implemented.
- * TODO: Implement KernelPromptTemplate and Jinja2PromptTemplate
+ * TODO: Implement Jinja2PromptTemplate
  */
 export const TEMPLATE_FORMAT_MAP: Record<TemplateFormatTypes, new (...args: any[]) => PromptTemplateBase> = {
   [HANDLEBARS_TEMPLATE_FORMAT_NAME]: HandlebarsPromptTemplate,
