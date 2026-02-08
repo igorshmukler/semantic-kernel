@@ -1,4 +1,4 @@
-const AGENT_TYPE_REGEX = /^[\w\-\.]+$/
+const AGENT_TYPE_REGEX = /^[\w\-.]+$/
 
 /**
  * Check if the agent type is valid.
