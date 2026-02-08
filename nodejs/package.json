@@ -1,14 +1,15 @@
 {
-  "name": "semantic-kernel-nodejs",
+  "name": "semantic-kernel",
   "version": "0.0.1",
   "description": "Semantic Kernel Node.js/TypeScript SDK",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
+    "prebuild": "npm run clean",
     "build": "tsc",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
@@ -119,32 +120,23 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     },
     "./kernel": {
       "types": "./dist/semantic_kernel/kernel.d.ts",
       "import": "./dist/semantic_kernel/kernel.js"
     },
-    "./agents": {
-      "types": "./dist/agents/index.d.ts",
-      "import": "./dist/agents/index.js"
-    },
     "./connectors/ai/openai": {
-      "types": "./dist/connectors/ai/openai/index.d.ts",
-      "import": "./dist/connectors/ai/openai/index.js"
-    },
-    "./connectors/ai/azure-openai": {
-      "types": "./dist/connectors/ai/azure-openai/index.d.ts",
-      "import": "./dist/connectors/ai/azure-openai/index.js"
+      "types": "./dist/semantic_kernel/connectors/ai/open-ai/index.d.ts",
+      "import": "./dist/semantic_kernel/connectors/ai/open-ai/index.js"
     },
     "./functions": {
-      "types": "./dist/functions/index.d.ts",
-      "import": "./dist/functions/index.js"
+      "types": "./dist/semantic_kernel/functions/index.d.ts",
+      "import": "./dist/semantic_kernel/functions/index.js"
     },
     "./contents": {
-      "types": "./dist/contents/index.d.ts",
-      "import": "./dist/contents/index.js"
+      "types": "./dist/semantic_kernel/contents/index.d.ts",
+      "import": "./dist/semantic_kernel/contents/index.js"
     }
   }
 }

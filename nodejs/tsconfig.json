@@ -15,23 +15,28 @@
     "resolveJsonModule": true,
     "types": ["node", "jest"],
     "sourceMap": true,
-    "removeComments": true,
+    "removeComments": false,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true,
-    "isolatedModules": true
+    // For now, enabled module isolation to allow using ES2022 module features like top-level await in our codebase.
+    // We can consider disabling this in the future if it causes issues or if we want to allow non-module files.
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": [
     "semantic_kernel/**/*",
-    "tests/**/*",
-    "samples/**/*"
+    "index.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.spec.ts",
-    "**/*.test.ts"
+    "**/*.test.ts",
+    "tests",
+    "samples"
   ]
 }

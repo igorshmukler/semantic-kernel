@@ -63,8 +63,8 @@ export function areSensitiveEventsEnabled(): boolean {
  * Note: This function is marked as 'experimental' and may change in the future.
  */
 export function traceAgentGetResponse<T extends Agent>(
-  target: T,
-  propertyKey: string,
+  _target: T,
+  _propertyKey: string,
   descriptor: PropertyDescriptor
 ): PropertyDescriptor {
   const originalMethod = descriptor.value
@@ -116,8 +116,8 @@ export function traceAgentGetResponse<T extends Agent>(
  * Note: This function is marked as 'experimental' and may change in the future.
  */
 export function traceAgentInvocation<T extends Agent>(
-  target: T,
-  propertyKey: string,
+  _target: T,
+  _propertyKey: string,
   descriptor: PropertyDescriptor
 ): PropertyDescriptor {
   const originalMethod = descriptor.value
@@ -174,8 +174,8 @@ export function traceAgentInvocation<T extends Agent>(
  * Note: This function is marked as 'experimental' and may change in the future.
  */
 export function traceAgentStreamingInvocation<T extends Agent>(
-  target: T,
-  propertyKey: string,
+  _target: T,
+  _propertyKey: string,
   descriptor: PropertyDescriptor
 ): PropertyDescriptor {
   const originalMethod = descriptor.value

@@ -2,7 +2,8 @@ import { randomUUID } from 'crypto'
 import { ChatMessageContent, CMCItemTypes } from '../contents/chat-message-content'
 import { StreamingChatMessageContent } from '../contents/streaming-chat-message-content'
 import { AuthorRole } from '../contents/utils/author-role'
-import { Kernel, KernelArguments, KernelPlugin, PromptExecutionSettings, PromptTemplateConfig } from '../kernel'
+import { KernelArguments } from '../functions/kernel-arguments'
+import { Kernel, KernelPlugin, PromptExecutionSettings, PromptTemplateConfig } from '../kernel'
 
 // #region Declarative Spec Definitions
 
@@ -471,7 +472,7 @@ export abstract class Agent {
   protected _mergeArguments(overrideArgs?: KernelArguments): KernelArguments {
     if (!this.arguments) {
       if (!overrideArgs) {
-        return {}
+        return new KernelArguments()
       }
 
       return overrideArgs
@@ -482,15 +483,7 @@ export abstract class Agent {
     }
 
     // Both are not undefined, so merge with precedence for overrideArgs
-    const mergedExecutionSettings = { ...(this.arguments.executionSettings || {}) }
-    if (overrideArgs.executionSettings) {
-      Object.assign(mergedExecutionSettings, overrideArgs.executionSettings)
-    }
-
-    const merged = { ...this.arguments, ...overrideArgs }
-    merged.executionSettings = mergedExecutionSettings
-
-    return merged
+    return this.arguments.merge(overrideArgs)
   }
 
   // #endregion
@@ -927,16 +920,16 @@ export abstract class DeclarativeSpecMixin extends Agent {
     }
 
     // Convert model options to execution settings
-    let arguments_: KernelArguments = {}
+    let arguments_: KernelArguments = new KernelArguments()
     if (Object.keys(modelOptions).length > 0) {
       const execSettings: PromptExecutionSettings = { ...modelOptions }
-      arguments_ = { executionSettings: execSettings }
+      arguments_ = new KernelArguments({ settings: execSettings })
     }
 
     // Add input defaults as regular items
     for (const [k, v] of Object.entries(inputDefaults)) {
-      if (!(k in arguments_)) {
-        arguments_[k] = v
+      if (!arguments_.has(k)) {
+        arguments_.set(k, v)
       }
     }
 

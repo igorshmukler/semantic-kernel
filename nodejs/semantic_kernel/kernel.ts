@@ -6,6 +6,9 @@
  */
 
 import { EventEmitter } from 'events'
+import { KernelArguments as KernelArgumentsClass } from './functions/kernel-arguments'
+import { KernelFunctionFromPrompt } from './functions/kernel-function-from-prompt'
+import { PromptTemplateConfig as PromptTemplateConfigClass } from './prompt-template/prompt-template-config'
 
 // Type definitions for core Kernel components
 export interface KernelPlugin {
@@ -43,9 +46,8 @@ export interface KernelFunctionMetadata {
   }
 }
 
-export interface KernelArguments {
-  [key: string]: any
-}
+// Using actual KernelArguments class from ./functions/kernel-arguments
+export type KernelArguments = KernelArgumentsClass
 
 export interface FunctionResult {
   function: KernelFunctionMetadata
@@ -97,18 +99,8 @@ export interface PromptExecutionSettings {
   [key: string]: any
 }
 
-export interface PromptTemplateConfig {
-  name?: string
-  description?: string
-  template: string
-  templateFormat?: 'semantic-kernel' | 'handlebars' | 'jinja2'
-  inputVariables?: Array<{
-    name: string
-    description?: string
-    default?: any
-  }>
-  executionSettings?: Record<string, PromptExecutionSettings>
-}
+// Using actual PromptTemplateConfig class from ./prompt-template/prompt-template-config
+export type PromptTemplateConfig = PromptTemplateConfigClass
 
 export interface AIServiceClient {
   serviceId?: string
@@ -315,9 +307,11 @@ export class Kernel extends EventEmitter {
   }): Promise<FunctionResult | null> {
     let { function: func, arguments: args, functionName, pluginName, metadata, ...kwargs } = options
 
-    args = args || {}
+    args = args || new KernelArgumentsClass()
     // Merge kwargs into arguments
-    Object.assign(args, kwargs)
+    for (const [key, value] of Object.entries(kwargs)) {
+      args.set(key, value)
+    }
 
     if (!func) {
       if (!functionName || !pluginName) {
@@ -360,9 +354,11 @@ export class Kernel extends EventEmitter {
       ...kwargs
     } = options
 
-    args = args || {}
+    args = args || new KernelArgumentsClass()
     // Merge kwargs into arguments
-    Object.assign(args, kwargs)
+    for (const [key, value] of Object.entries(kwargs)) {
+      args.set(key, value)
+    }
     returnFunctionResults = returnFunctionResults ?? false
 
     if (!func) {
@@ -431,31 +427,23 @@ export class Kernel extends EventEmitter {
       ...kwargs
     } = options
 
-    const finalArgs = args || {}
-    Object.assign(finalArgs, kwargs)
+    const finalArgs = args || new KernelArgumentsClass()
+    for (const [key, value] of Object.entries(kwargs)) {
+      finalArgs.set(key, value)
+    }
 
     if (!prompt) {
       throw new Error('The prompt is either null or empty.')
     }
 
-    // Create a function from prompt (implementation would depend on KernelFunctionFromPrompt)
-    // This is a simplified placeholder
-    const func: KernelFunction = {
-      name: functionName || this._generateRandomName(),
+    // Create a function from prompt using KernelFunctionFromPrompt
+    const func = new KernelFunctionFromPrompt({
+      functionName: functionName || this._generateRandomName(),
       pluginName,
-      description: 'Function created from prompt',
-      parameters: [],
-      metadata: {
-        name: functionName || this._generateRandomName(),
-        pluginName,
-        description: 'Function created from prompt',
-        parameters: [],
-      },
-      invoke: async (kernel: Kernel, args: KernelArguments) => {
-        // This would render the prompt template and invoke the AI service
-        throw new Error('KernelFunctionFromPrompt not yet implemented')
-      },
-    }
+      prompt,
+      templateFormat,
+      promptTemplateConfig,
+    })
 
     return await this.invoke({ function: func, arguments: finalArgs })
   }
@@ -481,16 +469,26 @@ export class Kernel extends EventEmitter {
       ...kwargs
     } = options
 
-    const finalArgs = args || {}
-    Object.assign(finalArgs, kwargs)
+    const finalArgs = args || new KernelArgumentsClass()
+    for (const [key, value] of Object.entries(kwargs)) {
+      finalArgs.set(key, value)
+    }
 
     if (!prompt) {
       throw new Error('The prompt is either null or empty.')
     }
 
-    // Create a function from prompt (implementation would depend on KernelFunctionFromPrompt)
-    // This is a simplified placeholder
-    throw new Error('invokePromptStream not yet fully implemented')
+    // Create a function from prompt using KernelFunctionFromPrompt
+    const func = new KernelFunctionFromPrompt({
+      functionName: functionName || this._generateRandomName(),
+      pluginName,
+      prompt,
+      templateFormat,
+      promptTemplateConfig,
+    })
+
+    // Use the function's invokeStream method
+    return func.invokeStream(this, finalArgs)
   }
 
   async invokeFunctionCall(options: {
@@ -538,7 +536,7 @@ export class Kernel extends EventEmitter {
         functionCall.functionName || functionCall.name
       )
 
-      const argsCloned = { ...(args || {}) }
+      const argsCloned = args ? args.merge({}) : new KernelArgumentsClass()
       let parsedArgs: KernelArguments | null = null
 
       try {
@@ -601,7 +599,7 @@ export class Kernel extends EventEmitter {
       }
 
       if (parsedArgs) {
-        Object.assign(argsCloned, parsedArgs)
+        argsCloned.mergeInPlace(parsedArgs)
       }
 
       console.info(`Calling ${functionCall.name} function with args: ${functionCall.arguments}`)
@@ -856,17 +854,48 @@ export class Kernel extends EventEmitter {
     return obj
   }
 
-  private _getFilteredFunctionNames(filters: any): string[] {
+  private _getFilteredFunctionNames(filters: {
+    included_plugins?: string[]
+    excluded_plugins?: string[]
+    included_functions?: string[]
+    excluded_functions?: string[]
+  }): string[] {
     // Helper to get list of allowed function names based on filters
-    // This is a placeholder - actual implementation depends on filter structure
-    const functionNames: string[] = []
+    const includedPlugins = filters.included_plugins
+    const excludedPlugins = filters.excluded_plugins || []
+    const includedFunctions = filters.included_functions
+    const excludedFunctions = filters.excluded_functions || []
+
+    // Validate mutually exclusive filters
+    if (includedPlugins && excludedPlugins.length > 0) {
+      throw new Error('Cannot use both included_plugins and excluded_plugins at the same time.')
+    }
+    if (includedFunctions && excludedFunctions.length > 0) {
+      throw new Error('Cannot use both included_functions and excluded_functions at the same time.')
+    }
+
+    const result: string[] = []
     for (const [pluginName, plugin] of this._plugins.entries()) {
-      for (const [funcName, func] of plugin.functions.entries()) {
+      // Check plugin filters
+      if (excludedPlugins.includes(pluginName) || (includedPlugins && !includedPlugins.includes(pluginName))) {
+        continue
+      }
+
+      for (const [funcName, _func] of plugin.functions.entries()) {
         const fullyQualifiedName = `${pluginName}-${funcName}`
-        functionNames.push(fullyQualifiedName)
+
+        // Check function filters
+        if (
+          excludedFunctions.includes(fullyQualifiedName) ||
+          (includedFunctions && !includedFunctions.includes(fullyQualifiedName))
+        ) {
+          continue
+        }
+
+        result.push(fullyQualifiedName)
       }
     }
-    return functionNames
+    return result
   }
 
   private _isFunctionResult(obj: any): obj is FunctionResult {
