@@ -10,7 +10,7 @@
   },
   "scripts": {
     "prebuild": "npm run clean",
-    "build": "tsc",
+    "build": "tsc && fix-esm-import-path dist",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
     "test": "jest",
@@ -81,6 +81,7 @@
     "eslint": "9.39.2",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.0",
+    "fix-esm-import-path": "1.10.3",
     "globals": "17.3.0",
     "jest": "^29.7.0",
     "prettier": "^3.4.0",

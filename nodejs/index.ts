@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft. All rights reserved.
-
 /**
  * Semantic Kernel for Node.js/TypeScript
  *
