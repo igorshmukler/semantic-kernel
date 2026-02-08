@@ -311,7 +311,7 @@ export abstract class BaseAgent implements Agent {
   /**
    * Load the state of the agent.
    */
-  async loadState(state: Record<string, any>): Promise<void> {
+  async loadState(_state: Record<string, any>): Promise<void> {
     console.warn('loadState not implemented')
   }
 
