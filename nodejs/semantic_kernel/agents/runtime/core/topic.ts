@@ -1,6 +1,6 @@
 import { experimental } from '../../../utils/feature-stage-decorator'
 
-const TOPIC_TYPE_REGEX = /^[\w\-\.\:\=]+$/
+const TOPIC_TYPE_REGEX = /^[\w\-.:=]+$/
 
 /**
  * Check if the given value is a valid topic type.

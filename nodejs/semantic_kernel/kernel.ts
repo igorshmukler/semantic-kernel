@@ -305,7 +305,8 @@ export class Kernel extends EventEmitter {
     metadata?: Record<string, any>
     [key: string]: any
   }): Promise<FunctionResult | null> {
-    let { function: func, arguments: args, functionName, pluginName, metadata, ...kwargs } = options
+    let { function: func, arguments: args } = options
+    const { functionName, pluginName, metadata, ...kwargs } = options
 
     args = args || new KernelArgumentsClass()
     // Merge kwargs into arguments
@@ -344,21 +345,24 @@ export class Kernel extends EventEmitter {
     returnFunctionResults?: boolean
     [key: string]: any
   }): AsyncGenerator<StreamingContentMixin[] | FunctionResult> {
-    let {
-      function: func,
-      arguments: args,
+    let { function: func, arguments: args, returnFunctionResults } = options
+    const {
+      function: _function,
+      arguments: _arguments,
+      returnFunctionResults: _returnFunctionResults,
       functionName,
       pluginName,
-      metadata,
-      returnFunctionResults,
+      metadata: _metadata,
       ...kwargs
     } = options
 
     args = args || new KernelArgumentsClass()
+
     // Merge kwargs into arguments
     for (const [key, value] of Object.entries(kwargs)) {
       args.set(key, value)
     }
+
     returnFunctionResults = returnFunctionResults ?? false
 
     if (!func) {
@@ -387,17 +391,16 @@ export class Kernel extends EventEmitter {
     if (returnFunctionResults) {
       const outputFunctionResult: StreamingContentMixin[] = []
       for (const result of functionResult) {
-        if (Array.isArray(result)) {
-          for (const choice of result) {
-            if (this._isStreamingContent(choice)) {
-              if (outputFunctionResult.length <= choice.choiceIndex) {
-                outputFunctionResult.push({ ...choice })
-              } else {
-                // Merge content
-                const existing = outputFunctionResult[choice.choiceIndex]
-                existing.content = (existing.content || '') + (choice.content || '')
-              }
-            }
+        for (const choice of result) {
+          if (!this._isStreamingContent(choice)) {
+            continue
+          }
+          if (outputFunctionResult.length <= choice.choiceIndex) {
+            outputFunctionResult.push({ ...choice })
+          } else {
+            // Merge content
+            const existing = outputFunctionResult[choice.choiceIndex]
+            existing.content = (existing.content || '') + (choice.content || '')
           }
         }
       }
@@ -464,7 +467,7 @@ export class Kernel extends EventEmitter {
       pluginName,
       arguments: args,
       templateFormat,
-      returnFunctionResults,
+      _returnFunctionResults,
       promptTemplateConfig,
       ...kwargs
     } = options
@@ -488,7 +491,7 @@ export class Kernel extends EventEmitter {
     })
 
     // Use the function's invokeStream method
-    return func.invokeStream(this, finalArgs)
+    yield* func.invokeStream(this, finalArgs)
   }
 
   async invokeFunctionCall(options: {
@@ -845,7 +848,7 @@ export class Kernel extends EventEmitter {
     if (typeof obj === 'object') {
       const copy: any = {}
       for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
+        if (Object.hasOwn(obj, key)) {
           copy[key] = this._deepCopy((obj as any)[key])
         }
       }
