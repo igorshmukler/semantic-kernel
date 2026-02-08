@@ -34,3 +34,18 @@ export enum ContentTypes {
   STREAMING_FILE_REFERENCE_CONTENT = 'streaming_file_reference',
   TEXT_CONTENT = 'text',
 }
+
+/**
+ * Tag to content class mapping.
+ * This is populated lazily to avoid circular dependencies.
+ * Import and call registerTagContentMap() from your content classes.
+ */
+export const TAG_CONTENT_MAP: Record<string, any> = {}
+
+/**
+ * Register a content class with its tag.
+ * Call this from each content class file to populate TAG_CONTENT_MAP.
+ */
+export function registerTagContent(tag: string, contentClass: any): void {
+  TAG_CONTENT_MAP[tag] = contentClass
+}

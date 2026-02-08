@@ -1,7 +1,7 @@
 import { ChatMessageContent } from './chat-message-content'
 import { FUNCTION_RESULT_CONTENT_TAG } from './const'
 import { KernelContent } from './kernel-content'
-import { StreamingChatMessageContent } from './streaming-chat-message-content'
+import type { StreamingChatMessageContent } from './streaming-chat-message-content'
 import { TextContent } from './text-content'
 import { AuthorRole } from './utils/author-role'
 
@@ -171,8 +171,8 @@ export class FunctionResultContent extends KernelContent {
   /**
    * Convert the instance to a StreamingChatMessageContent.
    */
-  toStreamingChatMessageContent(): any {
-    // Dynamic import to avoid circular dependency
+  async toStreamingChatMessageContent(): Promise<StreamingChatMessageContent> {
+    const { StreamingChatMessageContent } = await import('./streaming-chat-message-content.js')
     return new StreamingChatMessageContent({
       role: AuthorRole.TOOL,
       choiceIndex: 0,

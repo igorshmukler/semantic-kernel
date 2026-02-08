@@ -1,18 +1,7 @@
 import { AnnotationContent } from './annotation-content'
 import { AudioContent } from './audio-content'
 import { BinaryContent } from './binary-content'
-import {
-  ANNOTATION_CONTENT_TAG,
-  CHAT_MESSAGE_CONTENT_TAG,
-  FILE_REFERENCE_CONTENT_TAG,
-  FUNCTION_CALL_CONTENT_TAG,
-  FUNCTION_RESULT_CONTENT_TAG,
-  IMAGE_CONTENT_TAG,
-  REASONING_CONTENT_TAG,
-  STREAMING_ANNOTATION_CONTENT_TAG,
-  STREAMING_FILE_REFERENCE_CONTENT_TAG,
-  TEXT_CONTENT_TAG,
-} from './const'
+import { CHAT_MESSAGE_CONTENT_TAG, TAG_CONTENT_MAP } from './const'
 import { FileReferenceContent } from './file-reference-content'
 import { FunctionCallContent } from './function-call-content'
 import { FunctionResultContent } from './function-result-content'
@@ -25,18 +14,6 @@ import { TextContent } from './text-content'
 import { AuthorRole } from './utils/author-role'
 import { FinishReason } from './utils/finish-reason'
 import { Status } from './utils/status'
-
-const TAG_CONTENT_MAP: Record<string, any> = {
-  [ANNOTATION_CONTENT_TAG]: AnnotationContent,
-  [TEXT_CONTENT_TAG]: TextContent,
-  [FILE_REFERENCE_CONTENT_TAG]: FileReferenceContent,
-  [FUNCTION_CALL_CONTENT_TAG]: FunctionCallContent,
-  [FUNCTION_RESULT_CONTENT_TAG]: FunctionResultContent,
-  [IMAGE_CONTENT_TAG]: ImageContent,
-  [REASONING_CONTENT_TAG]: ReasoningContent,
-  [STREAMING_FILE_REFERENCE_CONTENT_TAG]: StreamingFileReferenceContent,
-  [STREAMING_ANNOTATION_CONTENT_TAG]: StreamingAnnotationContent,
-}
 
 export type CMCItemTypes =
   | AnnotationContent
