@@ -283,7 +283,10 @@ export class ChatHistory {
     // Try to parse as XML
     try {
       // Simple XML parsing - in production, use a proper XML parser
-      const messageRegex = new RegExp(`<${CHAT_MESSAGE_CONTENT_TAG}[^>]*>([\s\S]*?)</${CHAT_MESSAGE_CONTENT_TAG}>`, 'g')
+      const messageRegex = new RegExp(
+        `<${CHAT_MESSAGE_CONTENT_TAG}[^>]*>([\\s\\S]*?)</${CHAT_MESSAGE_CONTENT_TAG}>`,
+        'g'
+      )
       const matches = prompt.matchAll(messageRegex)
 
       let hasMatches = false
