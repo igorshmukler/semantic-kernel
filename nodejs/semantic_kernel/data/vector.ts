@@ -308,7 +308,7 @@ export abstract class VectorStoreRecordHandler<_TKey = any, TModel = any> {
         return serialized
       }
     } catch (error) {
-      throw new Error(`Error serializing records: ${error}`)
+      throw new Error('Error serializing records', { cause: error })
     }
 
     let dictRecords: Array<Record<string, any>> = []
