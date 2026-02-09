@@ -243,6 +243,7 @@ export class KernelFunctionFromMethod extends KernelFunction {
           try {
             value = this._parseParameter(value, param.typeObject)
           } catch (error) {
+            console.error(`Error parsing parameter ${param.name}:`, error)
             throw new FunctionExecutionException(
               `Parameter ${param.name} is expected to be parsed to ${param.typeObject} but is not.`
             )

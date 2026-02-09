@@ -8,7 +8,7 @@ export class KernelProcessState<TState = any> extends KernelProcessStepState<TSt
   /**
    * The type identifier for this state.
    */
-  override type: 'KernelProcessState' = 'KernelProcessState'
+  override type = 'KernelProcessState' as const
 
   constructor(params: { name: string; version: string; id?: string | null; state?: TState | null }) {
     super(params)

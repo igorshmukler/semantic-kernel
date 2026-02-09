@@ -62,7 +62,7 @@ export class KernelProcessStateMetadata<TState = any> extends KernelProcessStepS
   /**
    * The type of the metadata.
    */
-  override $type: 'Process' = 'Process'
+  override $type = 'Process' as const
 
   /**
    * The state of all steps in the process.
@@ -77,7 +77,7 @@ export class KernelProcessStateMetadata<TState = any> extends KernelProcessStepS
     stepsState?: Record<string, KernelProcessStateMetadata | KernelProcessStepStateMetadata>
   }) {
     super(params)
-    this.$type = 'Process'
+    this.$type = 'Process' as const
 
     if (params?.stepsState !== undefined) {
       this.stepsState = params.stepsState
