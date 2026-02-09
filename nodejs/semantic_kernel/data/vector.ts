@@ -182,7 +182,7 @@ export type OneOrMany<T> = T | T[]
  *
  * @releaseCandidate
  */
-export abstract class VectorStoreRecordHandler<TKey = any, TModel = any> {
+export abstract class VectorStoreRecordHandler<_TKey = any, TModel = any> {
   recordType: new (...args: any[]) => TModel
   definition: VectorStoreCollectionDefinition
   supportedKeyTypes: Set<string> | null = null
@@ -1744,7 +1744,6 @@ export abstract class VectorSearch<TKey = any, TModel = any> extends VectorStore
     }
 
     const filters = Array.isArray(searchFilter) ? searchFilter : [searchFilter]
-    const createdFilters: any[] = []
 
     const visitor = new LambdaVisitor(this._lambdaParser.bind(this))
     for (const filter of filters) {
