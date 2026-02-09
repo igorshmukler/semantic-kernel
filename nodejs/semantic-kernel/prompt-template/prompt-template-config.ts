@@ -1,8 +1,8 @@
-import { PromptExecutionSettings } from '../connectors/ai/prompt-execution-settings.js'
-import { DEFAULT_SERVICE_NAME } from '../const.js'
-import { KernelParameterMetadata } from '../functions/kernel-parameter-metadata.js'
-import { KERNEL_TEMPLATE_FORMAT_NAME, TemplateFormatTypes } from './const.js'
-import { InputVariable } from './input-variable.js'
+import { PromptExecutionSettings } from '../connectors/ai/prompt-execution-settings'
+import { DEFAULT_SERVICE_NAME } from '../const'
+import { KernelParameterMetadata } from '../functions/kernel-parameter-metadata'
+import { KERNEL_TEMPLATE_FORMAT_NAME, TemplateFormatTypes } from './const'
+import { InputVariable } from './input-variable'
 
 /**
  * Configuration for a prompt template.
