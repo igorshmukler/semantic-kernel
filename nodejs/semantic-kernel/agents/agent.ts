@@ -75,7 +75,7 @@ export interface AgentSpec {
 // #endregion
 
 // Create module-level logger
-const logger: Logger = createDefaultLogger({ level: 'info' })
+const logger: Logger = createDefaultLogger('Agent')
 
 // #region AgentThread
 

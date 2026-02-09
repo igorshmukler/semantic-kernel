@@ -8,7 +8,7 @@ import { KernelArguments } from './kernel-arguments'
 import { KernelFunctionMetadata } from './kernel-function-metadata'
 import { KernelParameterMetadata } from './kernel-parameter-metadata'
 
-const logger: Logger = createDefaultLogger({ level: 'info' })
+const logger: Logger = createDefaultLogger('KernelFunction')
 
 /**
  * Histogram for tracking function invocation duration.

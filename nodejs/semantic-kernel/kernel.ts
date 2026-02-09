@@ -184,7 +184,7 @@ export class Kernel extends EventEmitter {
     super()
 
     // Initialize logger
-    this._logger = options.logger || createDefaultLogger(options.loggerOptions)
+    this._logger = options.logger || createDefaultLogger('Kernel', options.loggerOptions)
 
     // Initialize plugins
     this._plugins = new Map()
