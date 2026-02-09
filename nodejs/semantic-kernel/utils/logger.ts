@@ -34,8 +34,12 @@ export function createDefaultLogger(aggregation?: string, options?: LoggerOption
 
   const defaultFormat = winston.format.combine(...baseFormats, finalFormat)
 
+  const processLogLevel = ['info', 'warn', 'error', 'debug'].includes(process.env.LOG_LEVEL || '')
+    ? process.env.LOG_LEVEL
+    : undefined
+
   return winston.createLogger({
-    level: options?.level || 'info',
+    level: options?.level || processLogLevel || 'info',
     defaultMeta: { agg },
     format: options?.format || defaultFormat,
     transports: options?.transports || [
