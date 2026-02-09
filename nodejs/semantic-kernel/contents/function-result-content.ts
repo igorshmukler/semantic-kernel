@@ -1,9 +1,9 @@
-import { ChatMessageContent } from './chat-message-content'
-import { FUNCTION_RESULT_CONTENT_TAG } from './const'
-import { KernelContent } from './kernel-content'
-import type { StreamingChatMessageContent } from './streaming-chat-message-content'
-import { TextContent } from './text-content'
-import { AuthorRole } from './utils/author-role'
+import { ChatMessageContent } from './chat-message-content.js'
+import { FUNCTION_RESULT_CONTENT_TAG } from './const.js'
+import { KernelContent } from './kernel-content.js'
+import type { StreamingChatMessageContent } from './streaming-chat-message-content.js'
+import { TextContent } from './text-content.js'
+import { AuthorRole } from './utils/author-role.js'
 
 const DEFAULT_FULLY_QUALIFIED_NAME_SEPARATOR = '-'
 
