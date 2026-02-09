@@ -323,20 +323,20 @@ export abstract class VectorStoreRecordHandler<_TKey = any, TModel = any> {
         }
       }
     } catch (error) {
-      throw new Error(`Error serializing records: ${error}`)
+      throw new Error('Error serializing records', { cause: error })
     }
 
     // Add vectors
     try {
       dictRecords = await this._addVectorsToRecords(dictRecords)
     } catch (error) {
-      throw new Error(`Exception occurred while trying to add the vectors to the records: ${error}`)
+      throw new Error('Exception occurred while trying to add the vectors to the records', { cause: error })
     }
 
     try {
       return this._serializeDictsToStoreModels(dictRecords, kwargs)
     } catch (error) {
-      throw new Error(`Error serializing records: ${error}`)
+      throw new Error('Error serializing records', { cause: error })
     }
   }
 
@@ -424,7 +424,7 @@ export abstract class VectorStoreRecordHandler<_TKey = any, TModel = any> {
       // regardless of mode, only 1 object is returned.
       return this._deserializeDictToDataModel(dictRecord, kwargs)
     } catch (error) {
-      throw new Error(`Error deserializing records: ${error}`)
+      throw new Error('Error deserializing records', { cause: error })
     }
   }
 
@@ -732,14 +732,14 @@ export abstract class VectorStoreCollection<TKey = any, TModel = any> extends Ve
     try {
       data = await this.serialize(records)
     } catch (error) {
-      throw new Error(`Error serializing records: ${error}`)
+      throw new Error('Error serializing records', { cause: error })
     }
 
     let results: TKey[]
     try {
       results = await this._innerUpsert(Array.isArray(data) ? data : [data], kwargs)
     } catch (error) {
-      throw new Error(`Error upserting record(s) into collection '${this.collectionName}': ${error}`)
+      throw new Error(`Error upserting record(s) into collection '${this.collectionName}'`, { cause: error })
     }
 
     if (batch || this._containerMode) {
@@ -828,7 +828,7 @@ export abstract class VectorStoreCollection<TKey = any, TModel = any> extends Ve
         try {
           options = new GetFilteredRecordOptions(getArgs)
         } catch (error) {
-          throw new Error(`Error creating options: ${error}`)
+          throw new Error('Error creating options', { cause: error })
         }
       } else {
         throw new Error('Either key, keys or options must be provided.')
@@ -839,7 +839,7 @@ export abstract class VectorStoreCollection<TKey = any, TModel = any> extends Ve
     try {
       records = await this._innerGet(keys, options, { ...kwargs, includeVectors })
     } catch (error) {
-      throw new Error(`Error getting record(s): ${error}`)
+      throw new Error('Error getting record(s)', { cause: error })
     }
 
     if (!records) {
@@ -853,7 +853,7 @@ export abstract class VectorStoreCollection<TKey = any, TModel = any> extends Ve
         include_vectors: includeVectors,
       })
     } catch (error) {
-      throw new Error(`Error deserializing records: ${error}`)
+      throw new Error('Error deserializing records', { cause: error })
     }
 
     if (batch) {
@@ -865,7 +865,7 @@ export abstract class VectorStoreCollection<TKey = any, TModel = any> extends Ve
     if (modelRecords.length === 1) {
       return modelRecords[0]
     }
-    throw new Error(`Error deserializing record, multiple records returned: ${modelRecords}`)
+    throw new Error('Error deserializing record, multiple records returned', { cause: modelRecords })
   }
 
   /**
@@ -882,7 +882,7 @@ export abstract class VectorStoreCollection<TKey = any, TModel = any> extends Ve
     try {
       await this._innerDelete(keysArray, kwargs)
     } catch (error) {
-      throw new Error(`Error deleting record(s): ${error}`)
+      throw new Error('Error deleting record(s)', { cause: error })
     }
   }
 }
@@ -1589,7 +1589,7 @@ export abstract class VectorSearch<TKey = any, TModel = any> extends VectorStore
           yield new VectorSearchResult({ record: record as TModel, score })
         }
       } catch (error) {
-        throw new Error(`An error occurred while deserializing the record: ${error}`)
+        throw new Error('An error occurred while deserializing the record', { cause: error })
       }
     }
   }
@@ -1637,7 +1637,7 @@ export abstract class VectorSearch<TKey = any, TModel = any> extends VectorStore
     try {
       return await this._innerSearch(SearchType.VECTOR, options, params?.values, params?.vector, kwargs)
     } catch (error) {
-      throw new Error(`An error occurred during the search: ${error}`)
+      throw new Error('An error occurred during the search', { cause: error })
     }
   }
 
@@ -1687,7 +1687,7 @@ export abstract class VectorSearch<TKey = any, TModel = any> extends VectorStore
     try {
       return await this._innerSearch(SearchType.KEYWORD_HYBRID, options, params.values, params.vector, kwargs)
     } catch (error) {
-      throw new Error(`An error occurred during the search: ${error}`)
+      throw new Error('An error occurred during the search', { cause: error })
     }
   }
 
@@ -1869,7 +1869,7 @@ export abstract class VectorSearch<TKey = any, TModel = any> extends VectorStore
       const query = kwargs.query ?? ''
       delete kwargs.query
 
-      let innerOptions = params.options ? { ...params.options } : new VectorSearchOptions()
+      const innerOptions = params.options ? { ...params.options } : new VectorSearchOptions()
 
       // Apply filter update function
       innerOptions.filter = updateFunc(innerOptions.filter, params.parameters as any[] | undefined, kwargs)
@@ -1929,7 +1929,7 @@ export abstract class VectorSearch<TKey = any, TModel = any> extends VectorStore
 
         return []
       } catch (error) {
-        throw new Error(`Exception in search function: ${error}`)
+        throw new Error('Exception in search function', { cause: error })
       }
     }
 
