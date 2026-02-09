@@ -103,6 +103,7 @@ export class KernelFunctionFromMethod extends KernelFunction {
         additionalProperties: additionalMetadata || {},
       })
     } catch (error) {
+      console.error('Error creating KernelFunctionMetadata:', error)
       throw new FunctionInitializationError('Failed to create KernelFunctionMetadata')
     }
 
@@ -181,6 +182,7 @@ export class KernelFunctionFromMethod extends KernelFunction {
       try {
         return (paramType as any).model_validate(value)
       } catch (error) {
+        console.error('Error validating parameter with model_validate:', error)
         throw new FunctionExecutionException(`Parameter is expected to be parsed to ${paramType} but is not.`)
       }
     }
@@ -197,6 +199,7 @@ export class KernelFunctionFromMethod extends KernelFunction {
       }
       return paramType(value)
     } catch (error) {
+      console.error('Error parsing parameter:', error)
       throw new FunctionExecutionException(`Parameter is expected to be parsed to ${paramType} but is not.`)
     }
   }
