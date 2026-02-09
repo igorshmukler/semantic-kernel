@@ -211,7 +211,8 @@ export function defaultDynamicFilterFunction(params: {
   parameters?: KernelParameterMetadata[] | null
   [key: string]: any
 }): string | ((options: SearchOptions) => void) | Array<string | ((options: SearchOptions) => void)> | null {
-  let { filter = null, parameters, ...kwargs } = params
+  const { filter = null, parameters, ...kwargs } = params
+  let updatedFilter = filter
 
   for (const param of parameters || []) {
     if (!param.name) continue
@@ -232,14 +233,14 @@ export function defaultDynamicFilterFunction(params: {
       continue
     }
 
-    if (filter === null || filter === undefined) {
-      filter = newFilter
-    } else if (Array.isArray(filter)) {
-      filter.push(newFilter)
+    if (updatedFilter === null || updatedFilter === undefined) {
+      updatedFilter = newFilter
+    } else if (Array.isArray(updatedFilter)) {
+      updatedFilter.push(newFilter)
     } else {
-      filter = [filter, newFilter]
+      updatedFilter = [updatedFilter, newFilter]
     }
   }
 
-  return filter
+  return updatedFilter
 }
