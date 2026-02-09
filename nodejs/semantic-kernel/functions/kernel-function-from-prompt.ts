@@ -1,12 +1,12 @@
-import { PromptExecutionSettings } from '../connectors/ai/prompt-execution-settings.js'
-import { FunctionInvocationContext } from '../filters/functions/function-invocation-context.js'
-import { KERNEL_TEMPLATE_FORMAT_NAME, TemplateFormatTypes } from '../prompt-template/const.js'
-import { PromptTemplateBase } from '../prompt-template/prompt-template-base.js'
-import { PromptTemplateConfig } from '../prompt-template/prompt-template-config.js'
-import { TEMPLATE_FORMAT_MAP } from '../prompt-template/template-format-map.js'
-import { KernelFunctionMetadata } from './kernel-function-metadata.js'
-import { KernelFunction } from './kernel-function.js'
-import { KernelParameterMetadata } from './kernel-parameter-metadata.js'
+import { PromptExecutionSettings } from '../connectors/ai/prompt-execution-settings'
+import { FunctionInvocationContext } from '../filters/functions/function-invocation-context'
+import { KERNEL_TEMPLATE_FORMAT_NAME, TemplateFormatTypes } from '../prompt-template/const'
+import { PromptTemplateBase } from '../prompt-template/prompt-template-base'
+import { PromptTemplateConfig } from '../prompt-template/prompt-template-config'
+import { TEMPLATE_FORMAT_MAP } from '../prompt-template/template-format-map'
+import { KernelFunction } from './kernel-function'
+import { KernelFunctionMetadata } from './kernel-function-metadata'
+import { KernelParameterMetadata } from './kernel-parameter-metadata'
 
 const PROMPT_RETURN_PARAM: KernelParameterMetadata = new KernelParameterMetadata({
   name: 'return',
