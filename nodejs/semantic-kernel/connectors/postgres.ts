@@ -1,5 +1,6 @@
 // PostgreSQL vector store connector implementation for Semantic Kernel
 import { Pool, PoolConfig } from 'pg'
+import format from 'pg-format'
 import {
   DistanceFunction,
   FieldTypes,
@@ -132,6 +133,22 @@ function convertDictToRow(record: Record<string, any>, fields: VectorStoreField[
     return value
   })
 }
+
+// region: Embedding Generator Interface
+
+/**
+ * Embedding generator interface for generating vector embeddings from text/values
+ */
+export interface EmbeddingGenerator<TValue = string> {
+  /**
+   * Generate embeddings from a list of values
+   * @param values The values to generate embeddings for
+   * @returns Promise of embedding vectors
+   */
+  generateEmbeddings(values: TValue[]): Promise<number[][]>
+}
+
+// endregion
 
 // region: Filter Types
 
@@ -372,7 +389,7 @@ class FilterBuilder {
    */
   private buildComparisonClause(filter: ComparisonFilter): string {
     const field = this.validateField(filter.field)
-    const quotedField = `"${field}"`
+    const quotedField = format('%I', field)
 
     switch (filter.operator) {
       case FilterOperator.EQUAL:
@@ -453,6 +470,11 @@ export interface VectorSearchOptions {
   includeTotalCount?: boolean
   /** Use streaming for results (memory efficient for large datasets) */
   useStreaming?: boolean
+  /**
+   * Values to generate embeddings from (alternative to providing vector directly)
+   * Requires an embedding generator to be configured
+   */
+  values?: any
 }
 
 export interface VectorSearchResult<T> {
@@ -579,12 +601,38 @@ export class PostgresConfig {
 // region: Collection
 
 export class PostgresCollection<TKey extends string | number, TModel extends Record<string, any>> {
+  static readonly SUPPORTED_KEY_TYPES = new Set(['string', 'number', 'int', 'str'])
+  static readonly SUPPORTED_VECTOR_TYPES = new Set(['float', 'number'])
+  static readonly SUPPORTED_DATA_TYPES = new Set([
+    'string',
+    'str',
+    'TEXT',
+    'number',
+    'int',
+    'float',
+    'INTEGER',
+    'DOUBLE PRECISION',
+    'boolean',
+    'bool',
+    'BOOLEAN',
+    'object',
+    'dict',
+    'JSONB',
+    'Date',
+    'datetime',
+    'TIMESTAMP',
+    'Buffer',
+    'bytes',
+    'BYTEA',
+  ])
+
   connectionPool?: Pool
   dbSchema: string = DEFAULT_SCHEMA
   collectionName: string
   definition: VectorStoreCollectionDefinition
   recordType: new () => TModel
   managedClient: boolean
+  embeddingGenerator?: EmbeddingGenerator<any>
   private settings: PostgresConfig
   private distanceColumnName: string = DISTANCE_COLUMN_NAME
 
@@ -595,6 +643,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     connectionPool?: Pool
     dbSchema?: string
     settings?: PostgresSettings
+    embeddingGenerator?: EmbeddingGenerator<any>
   }) {
     this.recordType = options.recordType
     this.collectionName = options.collectionName || new options.recordType().constructor.name
@@ -602,6 +651,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     this.dbSchema = options.dbSchema || DEFAULT_SCHEMA
     this.managedClient = !options.connectionPool
     this.settings = new PostgresConfig(options.settings)
+    this.embeddingGenerator = options.embeddingGenerator
 
     // Initialize definition
     if (options.definition) {
@@ -652,17 +702,76 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
   }
 
   private validateDataModel(): void {
+    // Validate key field type
+    const keyField = this.definition.fields.find((f) => f.fieldType === FieldTypes.KEY)
+    if (keyField?.type_ && !PostgresCollection.SUPPORTED_KEY_TYPES.has(keyField.type_)) {
+      throw new VectorStoreModelValidationError(
+        `Key field must be one of ${Array.from(PostgresCollection.SUPPORTED_KEY_TYPES).join(', ')}, got ${keyField.type_}`
+      )
+    }
+
+    // Validate vector fields
     for (const field of this.definition.fields) {
-      if (field.fieldType === FieldTypes.VECTOR && field.dimensions && field.dimensions > MAX_DIMENSIONALITY) {
-        throw new VectorStoreModelValidationError(
-          `Dimensionality of ${field.dimensions} exceeds the maximum allowed value of ${MAX_DIMENSIONALITY}.`
-        )
+      if (field.fieldType === FieldTypes.VECTOR) {
+        // Validate vector type
+        if (field.type_ && !PostgresCollection.SUPPORTED_VECTOR_TYPES.has(field.type_)) {
+          throw new VectorStoreModelValidationError(
+            `Vector field ${field.name} must be one of ${Array.from(PostgresCollection.SUPPORTED_VECTOR_TYPES).join(', ')}, got ${field.type_}`
+          )
+        }
+
+        // Validate dimensions
+        if (field.dimensions && field.dimensions > MAX_DIMENSIONALITY) {
+          throw new VectorStoreModelValidationError(
+            `Dimensionality of ${field.dimensions} exceeds the maximum allowed value of ${MAX_DIMENSIONALITY}.`
+          )
+        }
+      }
+
+      // Validate data field types (if type is specified)
+      if (field.fieldType === FieldTypes.DATA && field.type_) {
+        // Extract base type if it's an array type
+        const baseType = field.type_.replace(/\[\]$/, '').replace(/^Array<(.+)>$/, '$1')
+        if (!PostgresCollection.SUPPORTED_DATA_TYPES.has(baseType) && !field.type_.includes('VECTOR')) {
+          logger.warn(
+            `Data field ${field.name} has type '${field.type_}' which may not be supported by PostgreSQL. ` +
+              `Supported types: ${Array.from(PostgresCollection.SUPPORTED_DATA_TYPES).join(', ')}`
+          )
+        }
       }
     }
   }
 
   /**
-   * Upsert records into the database
+   * Generate a vector embedding from values using the embedding generator
+   * @param values The values to generate an embedding for
+   * @param options Vector search options including vector property name
+   * @returns The generated vector or null if no embedding generator is configured
+   */
+  private async generateVectorFromValues(values: any, options: VectorSearchOptions): Promise<number[] | null> {
+    if (!values || !this.embeddingGenerator) {
+      return null
+    }
+
+    // Verify the vector field exists
+    const vectorField = this.definition.fields.find(
+      (f) => f.fieldType === FieldTypes.VECTOR && (!options.vectorPropertyName || f.name === options.vectorPropertyName)
+    )
+
+    if (!vectorField) {
+      throw new VectorStoreModelValidationError(
+        `Vector field '${options.vectorPropertyName || 'default'}' not found in the data model.`
+      )
+    }
+
+    // Generate embedding
+    const embeddings = await this.embeddingGenerator.generateEmbeddings([values])
+    return embeddings[0] || null
+  }
+
+  /**
+   * Upsert records into the database using efficient batch inserts
+   * Uses multi-row INSERT statements to minimize round trips to the database
    */
   async upsert(records: TModel[]): Promise<TKey[]> {
     if (!this.connectionPool) {
@@ -675,35 +784,47 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     try {
       await client.query('BEGIN')
 
+      const fields = this.definition.fields
+      const keyField = this.definition.fields.find((f) => f.fieldType === FieldTypes.KEY)
+      const keyFieldName = keyField?.storageName || keyField?.name || 'id'
+      const columnNames = fields.map((f) => f.storageName || f.name)
+      const updateColumns = fields.filter((f) => f.name !== this.definition.keyName).map((f) => f.storageName || f.name)
+
+      // Process records in batches
       const maxRows = this.settings.maxRowsPerTransaction
       for (let i = 0; i < records.length; i += maxRows) {
         const batch = records.slice(i, i + maxRows)
-        const fields = this.definition.fields
 
-        for (const record of batch) {
+        // Convert all records to row values
+        const allValues: any[] = []
+        const valuePlaceholders: string[] = []
+
+        batch.forEach((record, batchIndex) => {
           const values = convertDictToRow(record, fields)
-          const columnNames = fields.map((f) => `"${f.storageName || f.name}"`).join(', ')
-          const placeholders = fields.map((_, idx) => `$${idx + 1}`).join(', ')
-          const keyField = this.definition.fields.find((f) => f.fieldType === FieldTypes.KEY)
-          const keyFieldName = keyField?.storageName || keyField?.name || 'id'
+          allValues.push(...values)
 
-          const updateColumns = fields
-            .filter((f) => f.name !== this.definition.keyName)
-            .map((f) => {
-              const name = f.storageName || f.name
-              return `"${name}" = EXCLUDED."${name}"`
-            })
-            .join(', ')
+          // Create placeholder group for this record: ($1, $2, $3), ($4, $5, $6), etc.
+          const offset = batchIndex * fields.length
+          const recordPlaceholders = fields.map((_, idx) => `$${offset + idx + 1}`).join(', ')
+          valuePlaceholders.push(`(${recordPlaceholders})`)
+        })
 
-          const query = `
-            INSERT INTO "${this.dbSchema}"."${this.collectionName}" (${columnNames})
-            VALUES (${placeholders})
-            ON CONFLICT ("${keyFieldName}") DO UPDATE SET ${updateColumns}
-            RETURNING "${keyFieldName}"
-          `
+        // Build multi-row INSERT statement using pg-format for safe identifier escaping
+        const columnList = columnNames.map((col) => format('%I', col)).join(', ')
+        const updateSet = updateColumns.map((col) => format('%I = EXCLUDED.%I', col, col)).join(', ')
+        const tableName = format('%I.%I', this.dbSchema, this.collectionName)
+        const query = `
+          INSERT INTO ${tableName} (${columnList})
+          VALUES ${valuePlaceholders.join(', ')}
+          ON CONFLICT (${format('%I', keyFieldName)}) DO UPDATE SET ${updateSet}
+          RETURNING ${format('%I', keyFieldName)}
+        `
 
-          const result = await client.query(query, values)
-          keys.push(result.rows[0][keyFieldName] as TKey)
+        const result = await client.query(query, allValues)
+
+        // Extract keys from result
+        for (const row of result.rows) {
+          keys.push(row[keyFieldName] as TKey)
         }
       }
 
@@ -735,15 +856,16 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     }
 
     const fields = this.definition.fields
-    const selectList = fields.map((f) => `"${f.storageName || f.name}"`).join(', ')
+    const selectList = fields.map((f) => format('%I', f.storageName || f.name)).join(', ')
     const keyField = fields.find((f) => f.fieldType === FieldTypes.KEY)
     const keyFieldName = keyField?.storageName || keyField?.name || 'id'
 
     const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ')
+    const tableName = format('%I.%I', this.dbSchema, this.collectionName)
     let query = `
       SELECT ${selectList}
-      FROM "${this.dbSchema}"."${this.collectionName}"
-      WHERE "${keyFieldName}" IN (${placeholders})
+      FROM ${tableName}
+      WHERE ${format('%I', keyFieldName)} IN (${placeholders})
     `
 
     // Add additional filter if provided
@@ -772,13 +894,14 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     }
 
     const fields = this.definition.fields
-    const selectList = fields.map((f) => `"${f.storageName || f.name}"`).join(', ')
+    const selectList = fields.map((f) => format('%I', f.storageName || f.name)).join(', ')
     const filterBuilder = new FilterBuilder(this.definition)
     const whereClause = filterBuilder.buildWhereClause(filter)
 
+    const tableName = format('%I.%I', this.dbSchema, this.collectionName)
     const query = `
       SELECT ${selectList}
-      FROM "${this.dbSchema}"."${this.collectionName}"
+      FROM ${tableName}
       WHERE ${whereClause}
     `
 
@@ -801,13 +924,14 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     }
 
     const fields = this.definition.fields
-    const selectList = fields.map((f) => `"${f.storageName || f.name}"`).join(', ')
+    const selectList = fields.map((f) => format('%I', f.storageName || f.name)).join(', ')
     const filterBuilder = new FilterBuilder(this.definition)
     const whereClause = filterBuilder.buildWhereClause(filter)
 
+    const tableName = format('%I.%I', this.dbSchema, this.collectionName)
     const query = `
       SELECT ${selectList}
-      FROM "${this.dbSchema}"."${this.collectionName}"
+      FROM ${tableName}
       WHERE ${whereClause}
     `
 
@@ -869,9 +993,10 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
         const batch = keys.slice(i, i + maxRows)
         const placeholders = batch.map((_, idx) => `$${idx + 1}`).join(', ')
 
+        const tableName = format('%I.%I', this.dbSchema, this.collectionName)
         const query = `
-          DELETE FROM "${this.dbSchema}"."${this.collectionName}"
-          WHERE "${keyFieldName}" IN (${placeholders})
+          DELETE FROM ${tableName}
+          WHERE ${format('%I', keyFieldName)} IN (${placeholders})
         `
 
         await client.query(query, batch)
@@ -905,17 +1030,18 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
       const columnName = field.storageName || field.name
 
       if (field.fieldType === FieldTypes.VECTOR) {
-        columnDefinitions.push(`"${columnName}" VECTOR(${field.dimensions})`)
+        columnDefinitions.push(format('%I VECTOR(%s)', columnName, field.dimensions))
       } else if (field.fieldType === FieldTypes.KEY) {
-        columnDefinitions.push(`"${columnName}" ${propertyType} PRIMARY KEY`)
+        columnDefinitions.push(format('%I %s PRIMARY KEY', columnName, propertyType))
       } else {
-        columnDefinitions.push(`"${columnName}" ${propertyType}`)
+        columnDefinitions.push(format('%I %s', columnName, propertyType))
       }
     }
 
     const columnsStr = columnDefinitions.join(', ')
+    const tableName = format('%I.%I', this.dbSchema, this.collectionName)
     const createTableQuery = `
-      CREATE TABLE "${this.dbSchema}"."${this.collectionName}" (${columnsStr})
+      CREATE TABLE ${tableName} (${columnsStr})
     `
 
     await this.connectionPool.query(createTableQuery)
@@ -955,7 +1081,8 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
       throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
-    const query = `DROP TABLE "${this.dbSchema}"."${this.collectionName}" CASCADE`
+    const tableName = format('%I.%I', this.dbSchema, this.collectionName)
+    const query = `DROP TABLE ${tableName} CASCADE`
     await this.connectionPool.query(query)
   }
 
@@ -987,11 +1114,15 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     const indexKindStr = INDEX_KIND_MAP[indexKind]
     const distanceOp = DISTANCE_FUNCTION_MAP_STRING[distanceFunction]
 
-    const query = `
-      CREATE INDEX "${indexName}"
-      ON "${this.dbSchema}"."${tableName}"
-      USING ${indexKindStr} ("${columnName}" ${distanceOp})
-    `
+    const fullTableName = format('%I.%I', this.dbSchema, tableName)
+    const query = format(
+      'CREATE INDEX %I ON %s USING %s (%I %s)',
+      indexName,
+      fullTableName,
+      indexKindStr,
+      columnName,
+      distanceOp
+    )
 
     await this.connectionPool.query(query)
     logger.info(`Index '${indexName}' created successfully on column '${columnName}'.`)
@@ -1000,19 +1131,34 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
   /**
    * Vector similarity search
    *
-   * @param vector - The query vector
-   * @param options - Search options including filter, top, skip, etc.
+   * @param vector - The query vector (or null if using options.values for embedding generation)
+   * @param options - Search options including filter, top, skip, values for embedding generation, etc.
    * @returns Search results with optional total count
    */
   async search(
-    vector: number[],
+    vector: number[] | null,
     options: VectorSearchOptions = {}
   ): Promise<KernelSearchResults<VectorSearchResult<TModel>>> {
     if (!this.connectionPool) {
       throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
-    const { query, params, returnFields } = this.constructVectorQuery(vector, options)
+    // Generate vector from values if provided
+    let searchVector = vector
+    if (!searchVector && options.values) {
+      searchVector = await this.generateVectorFromValues(options.values, options)
+      if (!searchVector) {
+        throw new VectorStoreOperationException(
+          'No embedding generator configured. Either provide a vector directly or configure an embedding generator.'
+        )
+      }
+    }
+
+    if (!searchVector) {
+      throw new VectorStoreOperationException('Either vector or options.values must be provided for search.')
+    }
+
+    const { query, params, returnFields } = this.constructVectorQuery(searchVector, options)
 
     // If total count is needed, we must fetch all results
     if (options.includeTotalCount) {
@@ -1024,7 +1170,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
 
     // Use streaming if requested or by default when total count not needed
     if (options.useStreaming !== false) {
-      const resultsGenerator = this.searchStream(vector, options)
+      const resultsGenerator = this.searchStream(searchVector, options)
       return new KernelSearchResults(resultsGenerator)
     }
 
@@ -1121,13 +1267,14 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     const selectFields = this.definition.fields.filter(
       (f) => options.includeVectors || f.fieldType !== FieldTypes.VECTOR
     )
-    const selectList = selectFields.map((f) => `"${f.storageName || f.name}"`).join(', ')
+    const selectList = selectFields.map((f) => format('%I', f.storageName || f.name)).join(', ')
     const vectorColumnName = vectorField.storageName || vectorField.name
     const distanceOp = DISTANCE_FUNCTION_MAP_OPS[distanceFunction]
+    const tableName = format('%I.%I', this.dbSchema, this.collectionName)
 
     let query = `
-      SELECT ${selectList}, "${vectorColumnName}" ${distanceOp} $1 as "${this.distanceColumnName}"
-      FROM "${this.dbSchema}"."${this.collectionName}"
+      SELECT ${selectList}, ${format('%I', vectorColumnName)} ${distanceOp} $1 as ${format('%I', this.distanceColumnName)}
+      FROM ${tableName}
     `
 
     // Add WHERE clause if filter exists
@@ -1137,7 +1284,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
       query += ` WHERE ${whereClause}`
     }
 
-    query += ` ORDER BY "${this.distanceColumnName}" LIMIT ${options.top || 10}`
+    query += ` ORDER BY ${format('%I', this.distanceColumnName)} LIMIT ${options.top || 10}`
 
     if (options.skip) {
       query += ` OFFSET ${options.skip}`
@@ -1146,7 +1293,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     // Handle cosine similarity transformation
     if (distanceFunction === DistanceFunction.CosineSimilarity) {
       query = `
-        SELECT subquery.*, 1 - subquery."${this.distanceColumnName}" AS "${this.distanceColumnName}"
+        SELECT subquery.*, 1 - subquery.${format('%I', this.distanceColumnName)} AS ${format('%I', this.distanceColumnName)}
         FROM (${query}) AS subquery
       `
     }
@@ -1154,7 +1301,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     // Handle dot product transformation
     if (distanceFunction === DistanceFunction.DotProduct) {
       query = `
-        SELECT subquery.*, -1 * subquery."${this.distanceColumnName}" AS "${this.distanceColumnName}"
+        SELECT subquery.*, -1 * subquery.${format('%I', this.distanceColumnName)} AS ${format('%I', this.distanceColumnName)}
         FROM (${query}) AS subquery
       `
     }
