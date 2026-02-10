@@ -47,8 +47,8 @@ export abstract class ActorBase extends RoutedAgent {
    * @param descriptor - The method descriptor
    */
   protected static exceptionHandler(
-    target: any,
-    propertyKey: string,
+    _target: any,
+    _propertyKey: string,
     descriptor: PropertyDescriptor
   ): PropertyDescriptor {
     const originalMethod = descriptor.value
