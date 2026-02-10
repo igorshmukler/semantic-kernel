@@ -15,7 +15,7 @@ export class ChatHistoryChannel extends AgentChannel {
   /**
    * The allowed content types for this channel.
    */
-  public static readonly ALLOWED_CONTENT_TYPES: Set<Function> = new Set([
+  public static readonly ALLOWED_CONTENT_TYPES: Set<new (...args: any[]) => any> = new Set([
     ImageContent,
     FunctionCallContent,
     FunctionResultContent,
@@ -172,7 +172,7 @@ export class ChatHistoryChannel extends AgentChannel {
     }
 
     for (const item of message.items) {
-      const itemConstructor = item.constructor
+      const itemConstructor = item.constructor as new (...args: any[]) => any
       if (!ChatHistoryChannel.ALLOWED_CONTENT_TYPES.has(itemConstructor)) {
         return false
       }
