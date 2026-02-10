@@ -131,6 +131,299 @@ function convertDictToRow(record: Record<string, any>, fields: VectorStoreField[
   })
 }
 
+// region: Filter Types
+
+/**
+ * Comparison operators for filter expressions
+ */
+export enum FilterOperator {
+  EQUAL = 'eq',
+  NOT_EQUAL = 'ne',
+  GREATER_THAN = 'gt',
+  GREATER_THAN_OR_EQUAL = 'gte',
+  LESS_THAN = 'lt',
+  LESS_THAN_OR_EQUAL = 'lte',
+  IN = 'in',
+  NOT_IN = 'nin',
+}
+
+/**
+ * Logical operators for combining filters
+ */
+export enum LogicalOperator {
+  AND = 'and',
+  OR = 'or',
+  NOT = 'not',
+}
+
+/**
+ * Base filter type
+ */
+export type Filter = ComparisonFilter | LogicalFilter | NotFilter
+
+/**
+ * Comparison filter (field op value)
+ */
+export interface ComparisonFilter {
+  field: string
+  operator: FilterOperator
+  value: any
+}
+
+/**
+ * Logical filter (AND/OR multiple filters)
+ */
+export interface LogicalFilter {
+  operator: LogicalOperator.AND | LogicalOperator.OR
+  filters: Filter[]
+}
+
+/**
+ * NOT filter (negates a filter)
+ */
+export interface NotFilter {
+  operator: LogicalOperator.NOT
+  filter: Filter
+}
+
+/**
+ * Type guard to check if a filter is a comparison filter
+ */
+function isComparisonFilter(filter: Filter): filter is ComparisonFilter {
+  return 'field' in filter && 'operator' in filter && 'value' in filter
+}
+
+/**
+ * Type guard to check if a filter is a logical filter
+ */
+function isLogicalFilter(filter: Filter): filter is LogicalFilter {
+  return 'filters' in filter && (filter.operator === LogicalOperator.AND || filter.operator === LogicalOperator.OR)
+}
+
+/**
+ * Type guard to check if a filter is a NOT filter
+ */
+function isNotFilter(filter: Filter): filter is NotFilter {
+  return 'filter' in filter && filter.operator === LogicalOperator.NOT
+}
+
+/**
+ * Helper functions to create filters
+ */
+export const Filters = {
+  /**
+   * Create an equality filter (field = value)
+   */
+  eq: (field: string, value: any): ComparisonFilter => ({
+    field,
+    operator: FilterOperator.EQUAL,
+    value,
+  }),
+
+  /**
+   * Create a not-equal filter (field <> value)
+   */
+  ne: (field: string, value: any): ComparisonFilter => ({
+    field,
+    operator: FilterOperator.NOT_EQUAL,
+    value,
+  }),
+
+  /**
+   * Create a greater-than filter (field > value)
+   */
+  gt: (field: string, value: any): ComparisonFilter => ({
+    field,
+    operator: FilterOperator.GREATER_THAN,
+    value,
+  }),
+
+  /**
+   * Create a greater-than-or-equal filter (field >= value)
+   */
+  gte: (field: string, value: any): ComparisonFilter => ({
+    field,
+    operator: FilterOperator.GREATER_THAN_OR_EQUAL,
+    value,
+  }),
+
+  /**
+   * Create a less-than filter (field < value)
+   */
+  lt: (field: string, value: any): ComparisonFilter => ({
+    field,
+    operator: FilterOperator.LESS_THAN,
+    value,
+  }),
+
+  /**
+   * Create a less-than-or-equal filter (field <= value)
+   */
+  lte: (field: string, value: any): ComparisonFilter => ({
+    field,
+    operator: FilterOperator.LESS_THAN_OR_EQUAL,
+    value,
+  }),
+
+  /**
+   * Create an IN filter (field IN values)
+   */
+  in: (field: string, values: any[]): ComparisonFilter => ({
+    field,
+    operator: FilterOperator.IN,
+    value: values,
+  }),
+
+  /**
+   * Create a NOT IN filter (field NOT IN values)
+   */
+  notIn: (field: string, values: any[]): ComparisonFilter => ({
+    field,
+    operator: FilterOperator.NOT_IN,
+    value: values,
+  }),
+
+  /**
+   * Combine filters with AND
+   */
+  and: (...filters: Filter[]): LogicalFilter => ({
+    operator: LogicalOperator.AND,
+    filters,
+  }),
+
+  /**
+   * Combine filters with OR
+   */
+  or: (...filters: Filter[]): LogicalFilter => ({
+    operator: LogicalOperator.OR,
+    filters,
+  }),
+
+  /**
+   * Negate a filter with NOT
+   */
+  not: (filter: Filter): NotFilter => ({
+    operator: LogicalOperator.NOT,
+    filter,
+  }),
+}
+
+/**
+ * Helper class to build and validate filters
+ */
+class FilterBuilder {
+  constructor(private definition: VectorStoreCollectionDefinition) {}
+
+  /**
+   * Validate that a field exists in the data model
+   */
+  private validateField(fieldName: string): string {
+    const storageNames = this.definition.fields.map((f) => f.storageName || f.name)
+    if (!storageNames.includes(fieldName)) {
+      throw new Error(`Field '${fieldName}' not in data model. Available fields: ${storageNames.join(', ')}`)
+    }
+    return fieldName
+  }
+
+  /**
+   * Escape a string value for SQL
+   */
+  private escapeValue(value: any): string {
+    if (value === null || value === undefined) {
+      return 'NULL'
+    }
+    if (typeof value === 'string') {
+      // Escape single quotes by doubling them
+      return "'" + value.replace(/'/g, "''") + "'"
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'TRUE' : 'FALSE'
+    }
+    if (typeof value === 'number') {
+      return String(value)
+    }
+    if (Array.isArray(value)) {
+      return '(' + value.map((v) => this.escapeValue(v)).join(', ') + ')'
+    }
+    // For objects, convert to JSON string
+    return "'" + JSON.stringify(value).replace(/'/g, "''") + "'"
+  }
+
+  /**
+   * Build WHERE clause from a filter
+   */
+  buildWhereClause(filter: Filter): string {
+    if (isComparisonFilter(filter)) {
+      return this.buildComparisonClause(filter)
+    } else if (isLogicalFilter(filter)) {
+      return this.buildLogicalClause(filter)
+    } else if (isNotFilter(filter)) {
+      return this.buildNotClause(filter)
+    }
+    throw new Error(`Unsupported filter type: ${JSON.stringify(filter)}`)
+  }
+
+  /**
+   * Build a comparison clause (field op value)
+   */
+  private buildComparisonClause(filter: ComparisonFilter): string {
+    const field = this.validateField(filter.field)
+    const quotedField = `"${field}"`
+
+    switch (filter.operator) {
+      case FilterOperator.EQUAL:
+        return `${quotedField} = ${this.escapeValue(filter.value)}`
+      case FilterOperator.NOT_EQUAL:
+        return `${quotedField} <> ${this.escapeValue(filter.value)}`
+      case FilterOperator.GREATER_THAN:
+        return `${quotedField} > ${this.escapeValue(filter.value)}`
+      case FilterOperator.GREATER_THAN_OR_EQUAL:
+        return `${quotedField} >= ${this.escapeValue(filter.value)}`
+      case FilterOperator.LESS_THAN:
+        return `${quotedField} < ${this.escapeValue(filter.value)}`
+      case FilterOperator.LESS_THAN_OR_EQUAL:
+        return `${quotedField} <= ${this.escapeValue(filter.value)}`
+      case FilterOperator.IN:
+        if (!Array.isArray(filter.value)) {
+          throw new Error('IN operator requires an array value')
+        }
+        return `${quotedField} IN ${this.escapeValue(filter.value)}`
+      case FilterOperator.NOT_IN:
+        if (!Array.isArray(filter.value)) {
+          throw new Error('NOT IN operator requires an array value')
+        }
+        return `${quotedField} NOT IN ${this.escapeValue(filter.value)}`
+      default:
+        throw new Error(`Unsupported operator: ${filter.operator}`)
+    }
+  }
+
+  /**
+   * Build a logical clause (AND/OR multiple filters)
+   */
+  private buildLogicalClause(filter: LogicalFilter): string {
+    if (filter.filters.length === 0) {
+      throw new Error('Logical filter must have at least one filter')
+    }
+
+    const clauses = filter.filters.map((f) => this.buildWhereClause(f))
+
+    if (clauses.length === 1) {
+      return clauses[0]
+    }
+
+    const operator = filter.operator === LogicalOperator.AND ? ' AND ' : ' OR '
+    return '(' + clauses.join(operator) + ')'
+  }
+
+  /**
+   * Build a NOT clause
+   */
+  private buildNotClause(filter: NotFilter): string {
+    return `NOT (${this.buildWhereClause(filter.filter)})`
+  }
+}
+
 // region: Interfaces
 
 export interface PostgresSettings {
@@ -152,7 +445,7 @@ export interface VectorSearchOptions {
   includeVectors?: boolean
   top?: number
   skip?: number
-  filter?: any
+  filter?: Filter
   includeTotalCount?: boolean
 }
 
@@ -162,7 +455,7 @@ export interface VectorSearchResult<T> {
 }
 
 export interface GetFilteredRecordOptions {
-  filter?: any
+  filter?: Filter
 }
 
 // region: Settings
@@ -377,8 +670,9 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
    */
   async get(keys: TKey[], options?: GetFilteredRecordOptions): Promise<TModel[] | null> {
     if (!keys || keys.length === 0) {
-      if (options) {
-        throw new Error('Get without keys is not yet implemented.')
+      if (options?.filter) {
+        // Support filtering without keys
+        return this.getFiltered(options.filter)
       }
       return null
     }
@@ -393,16 +687,52 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     const keyFieldName = keyField?.storageName || keyField?.name || 'id'
 
     const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ')
-    const query = `
+    let query = `
       SELECT ${selectList}
       FROM "${this.dbSchema}"."${this.collectionName}"
       WHERE "${keyFieldName}" IN (${placeholders})
     `
 
+    // Add additional filter if provided
+    if (options?.filter) {
+      const filterBuilder = new FilterBuilder(this.definition)
+      const whereClause = filterBuilder.buildWhereClause(options.filter)
+      query += ` AND ${whereClause}`
+    }
+
     const result = await this.connectionPool.query(query, keys)
 
     if (!result.rows || result.rows.length === 0) {
       return null
+    }
+
+    const fieldTuples: Array<[string, VectorStoreField | null]> = fields.map((f) => [f.storageName || f.name, f])
+    return result.rows.map((row) => convertRowToDict(row, fieldTuples) as TModel)
+  }
+
+  /**
+   * Get records by filter without requiring keys
+   */
+  private async getFiltered(filter: Filter): Promise<TModel[]> {
+    if (!this.connectionPool) {
+      throw new Error('Connection pool is not available, please call connect() first.')
+    }
+
+    const fields = this.definition.fields
+    const selectList = fields.map((f) => `"${f.storageName || f.name}"`).join(', ')
+    const filterBuilder = new FilterBuilder(this.definition)
+    const whereClause = filterBuilder.buildWhereClause(filter)
+
+    const query = `
+      SELECT ${selectList}
+      FROM "${this.dbSchema}"."${this.collectionName}"
+      WHERE ${whereClause}
+    `
+
+    const result = await this.connectionPool.query(query)
+
+    if (!result.rows || result.rows.length === 0) {
+      return []
     }
 
     const fieldTuples: Array<[string, VectorStoreField | null]> = fields.map((f) => [f.storageName || f.name, f])
@@ -617,8 +947,9 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
 
     // Add WHERE clause if filter exists
     if (options.filter) {
-      // Filter implementation would go here
-      // This is a simplified version
+      const filterBuilder = new FilterBuilder(this.definition)
+      const whereClause = filterBuilder.buildWhereClause(options.filter)
+      query += ` WHERE ${whereClause}`
     }
 
     query += ` ORDER BY "${this.distanceColumnName}" LIMIT ${options.top || 10}`
