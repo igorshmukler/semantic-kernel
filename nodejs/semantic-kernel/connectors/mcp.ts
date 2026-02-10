@@ -3,18 +3,26 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket.js'
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type {
-    CallToolResult,
-    CreateMessageRequest,
-    CreateMessageResult,
-    EmbeddedResource,
-    LoggingLevel,
-    AudioContent as McpAudioContent,
-    ImageContent as McpImageContent,
-    TextContent as McpTextContent,
-    Prompt,
-    PromptMessage,
-    Tool,
+  CallToolResult,
+  CreateMessageRequest,
+  CreateMessageResult,
+  EmbeddedResource,
+  LoggingLevel,
+  AudioContent as McpAudioContent,
+  ImageContent as McpImageContent,
+  TextContent as McpTextContent,
+  Prompt,
+  PromptMessage,
+  Tool,
+} from '@modelcontextprotocol/sdk/types.js'
+import {
+  CallToolRequestSchema,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListToolsRequestSchema,
+  SetLevelRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { AudioContent } from '../contents/audio-content'
 import { BinaryContent } from '../contents/binary-content'
@@ -23,7 +31,10 @@ import { ChatMessageContent } from '../contents/chat-message-content'
 import { ImageContent } from '../contents/image-content'
 import { TextContent } from '../contents/text-content'
 import { AuthorRole } from '../contents/utils/author-role'
-import { Kernel } from '../kernel'
+import { FunctionResult } from '../functions/function-result'
+import { KernelArguments } from '../functions/kernel-arguments'
+import { Kernel, KernelFunction, KernelPlugin } from '../kernel'
+import { PromptTemplateBase } from '../prompt-template/prompt-template-base'
 import { createDefaultLogger } from '../utils/logger'
 import { ChatCompletionClientBase } from './ai/chat-completion-client-base'
 
@@ -37,7 +48,6 @@ class GenericBinaryContent extends BinaryContent {
 
 // Type aliases for MCP SDK types
 type McpPromptMessage = PromptMessage
-type McpSamplingMessage = PromptMessage
 type McpCallToolResult = CallToolResult
 type McpTool = Tool
 type McpPrompt = Prompt
@@ -855,6 +865,351 @@ export class MCPWebsocketPlugin extends MCPPluginBase {
     const transport = new WebSocketClientTransport(new URL(this.url))
     return transport
   }
+}
+
+// #endregion
+
+// #region: Kernel as MCP Server
+
+/**
+ * Create an MCP server from function(s) or plugin(s).
+ *
+ * This function automatically creates an MCP server from single or multiple functions or plugins,
+ * all functions are added under the plugin_name that can be set by using the `pluginName` argument.
+ *
+ * @param functions - The function(s) or plugin(s) instance to use. Can be a mix of functions or plugins.
+ * @param options - Configuration options for the server
+ * @returns The MCP server instance
+ */
+export function createMcpServerFromFunctions(
+  functions: KernelFunction | KernelPlugin | Array<KernelFunction | KernelPlugin>,
+  options?: {
+    prompts?: PromptTemplateBase[]
+    serverName?: string
+    version?: string
+    instructions?: string
+    pluginName?: string
+  }
+): Server {
+  const kernel = new Kernel()
+  const pluginName = options?.pluginName || 'mcp'
+  const functionArray = Array.isArray(functions) ? functions : [functions]
+
+  // Create a helper plugin to hold all functions
+  const helperPluginFunctions = new Map<string, KernelFunction>()
+
+  for (const item of functionArray) {
+    try {
+      // Check if it's a KernelFunction by checking for invoke method
+      if ('invoke' in item && typeof (item as KernelFunction).invoke === 'function') {
+        const func = item as KernelFunction
+        helperPluginFunctions.set(func.name, func)
+      }
+      // Check if it's a KernelPlugin by checking for functions property
+      else if ('functions' in item && item.functions instanceof Map) {
+        const plugin = item as KernelPlugin
+        // Merge all functions from the plugin into the helper plugin
+        for (const [funcName, func] of plugin.functions) {
+          helperPluginFunctions.set(funcName, func)
+        }
+      } else {
+        logger.warn(`Unknown item type, skipping: ${typeof item}`)
+      }
+    } catch (error) {
+      logger.warn(`Failed to process item: ${error}`)
+    }
+  }
+
+  // Create and add the helper plugin with all functions
+  if (helperPluginFunctions.size > 0) {
+    const helperPlugin: KernelPlugin = {
+      name: pluginName,
+      description: `MCP server plugin containing ${helperPluginFunctions.size} function(s)`,
+      functions: helperPluginFunctions,
+    }
+    kernel.addPlugin(helperPlugin)
+  }
+
+  return createMcpServerFromKernel(kernel, options)
+}
+
+/**
+ * Create an MCP server from a kernel instance.
+ *
+ * This function automatically creates an MCP server from a kernel instance,
+ * exposing functions as tools and prompts as prompts.
+ *
+ * @param kernel - The kernel instance to use
+ * @param options - Configuration options for the server
+ * @returns The MCP server instance
+ */
+export function createMcpServerFromKernel(
+  kernel: Kernel,
+  options?: {
+    prompts?: PromptTemplateBase[]
+    serverName?: string
+    version?: string
+    instructions?: string
+    excludedFunctions?: string | string[]
+  }
+): Server {
+  const serverName = options?.serverName || 'SK'
+  const version = options?.version || '1.0.0'
+  const instructions = options?.instructions
+  const prompts = options?.prompts || []
+
+  let excludedFunctions = options?.excludedFunctions
+  if (excludedFunctions && !Array.isArray(excludedFunctions)) {
+    excludedFunctions = [excludedFunctions]
+  }
+
+  // Create the MCP server
+  const server = new Server(
+    {
+      name: serverName,
+      version,
+    },
+    {
+      capabilities: {
+        tools: {},
+        prompts: {},
+        logging: {},
+      },
+      instructions,
+    }
+  )
+
+  // Get all functions from kernel plugins
+  const allFunctions: any[] = []
+  for (const plugin of kernel.plugins.values()) {
+    for (const func of plugin.functions.values()) {
+      allFunctions.push(func)
+    }
+  }
+  const functionsToExpose = allFunctions.filter((func: any) => {
+    return !(excludedFunctions as string[])?.includes(func.name)
+  })
+
+  // Register tool handlers if we have functions
+  if (functionsToExpose.length > 0) {
+    // List tools handler
+    server.setRequestHandler(ListToolsRequestSchema, async () => {
+      const tools: Tool[] = functionsToExpose.map((func: any) => {
+        const properties: Record<string, any> = {}
+        const required: string[] = []
+
+        for (const param of func.parameters) {
+          if (param.name) {
+            properties[param.name] = {
+              type: param.type || 'string',
+              description: param.description || '',
+            }
+            if (param.isRequired) {
+              required.push(param.name)
+            }
+          }
+        }
+
+        return {
+          name: func.name,
+          description: func.description || '',
+          inputSchema: {
+            type: 'object',
+            properties,
+            required,
+          },
+        }
+      })
+
+      await _log(server, 'debug', `List of tools: ${JSON.stringify(tools)}`)
+      return { tools }
+    })
+
+    // Call tool handler
+    server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
+      const { name: functionName, arguments: args } = request.params
+      await _log(server, 'debug', `Calling tool with args: ${JSON.stringify({ functionName, args })}`)
+
+      const result = await _callKernelFunction(kernel, server, functionName, args || {})
+
+      if (result) {
+        const value = result.value
+        const messages: Array<McpTextContent | McpImageContent | McpAudioContent | McpEmbeddedResource> = []
+
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            if (
+              item instanceof TextContent ||
+              item instanceof ImageContent ||
+              item instanceof BinaryContent ||
+              item instanceof AudioContent ||
+              item instanceof ChatMessageContent
+            ) {
+              messages.push(...kernelContentToMcpContentTypes(item))
+            } else {
+              messages.push({ type: 'text', text: String(item) })
+            }
+          }
+        } else {
+          if (
+            value instanceof TextContent ||
+            value instanceof ImageContent ||
+            value instanceof BinaryContent ||
+            value instanceof AudioContent ||
+            value instanceof ChatMessageContent
+          ) {
+            messages.push(...kernelContentToMcpContentTypes(value))
+          } else {
+            messages.push({ type: 'text', text: String(value) })
+          }
+        }
+
+        return { content: messages }
+      }
+
+      throw new Error(`Function ${functionName} returned no result`)
+    })
+  }
+
+  // Register prompt handlers if we have prompts
+  if (prompts.length > 0) {
+    // List prompts handler
+    server.setRequestHandler(ListPromptsRequestSchema, async () => {
+      const mcpPrompts: Prompt[] = prompts.map((prompt: any) => {
+        const config = prompt.promptTemplateConfig
+        const args: any[] = (config?.inputVariables || []).map((v: any) => ({
+          name: v.name,
+          description: v.description || '',
+          required: v.isRequired || false,
+        }))
+
+        return {
+          name: config?.name || 'unnamed',
+          description: config?.description || '',
+          arguments: args,
+        }
+      })
+
+      await _log(server, 'debug', `List of prompts: ${JSON.stringify(mcpPrompts)}`)
+      return { prompts: mcpPrompts }
+    })
+
+    // Get prompt handler
+    server.setRequestHandler(GetPromptRequestSchema, async (request: any) => {
+      const { name, arguments: args } = request.params
+      const prompt = prompts.find((p) => (p as any).promptTemplateConfig?.name === name)
+
+      if (!prompt) {
+        return {
+          description: 'Prompt not found',
+          messages: [],
+        }
+      }
+
+      // Render the prompt
+      const kernelArgs = new KernelArguments({ args: args || {} })
+      const renderedPrompt = await prompt.render(kernel, kernelArgs)
+
+      // Convert rendered prompt to chat history
+      const chatHistory = ChatHistory.fromRenderedPrompt(renderedPrompt)
+      const messages: PromptMessage[] = []
+
+      for (const message of chatHistory.messages) {
+        const role =
+          message.role === AuthorRole.ASSISTANT || message.role === AuthorRole.USER
+            ? (message.role.toString().toLowerCase() as 'assistant' | 'user')
+            : 'assistant'
+
+        const mcpContents = kernelContentToMcpContentTypes(message)
+        if (mcpContents.length > 0) {
+          messages.push({
+            role,
+            content: mcpContents[0],
+          })
+        }
+      }
+
+      return { messages }
+    })
+  }
+
+  // Register logging level handler
+  server.setRequestHandler(SetLevelRequestSchema, async (request: any) => {
+    const { level } = request.params
+    const loggerInstance = logger as any
+    const mappedLevel = LOG_LEVEL_MAPPING[level as LoggingLevel] || 'info'
+
+    // Set the logger level if supported
+    if (loggerInstance.level && typeof loggerInstance.level === 'function') {
+      loggerInstance.level(mappedLevel)
+    }
+
+    await _log(server, level, `Log level set to ${level}`)
+    return {}
+  })
+
+  return server
+}
+
+/**
+ * Helper function to log messages
+ */
+async function _log(server: any, level: string, data: any): Promise<void> {
+  const loggerInstance = logger as any
+  const logLevel = level in LOG_LEVEL_MAPPING ? LOG_LEVEL_MAPPING[level as LoggingLevel] : level
+
+  // Log to local logger
+  if (typeof loggerInstance[logLevel] === 'function') {
+    loggerInstance[logLevel](data)
+  } else {
+    logger.info(data)
+  }
+
+  // Send log to MCP client if available
+  try {
+    const requestContext = (server as any).requestContext
+    if (requestContext?.session) {
+      await requestContext.session.send({
+        method: 'notifications/message',
+        params: {
+          level: level as LoggingLevel,
+          data,
+        },
+      })
+    }
+  } catch (error) {
+    // Ignore errors when sending log messages
+  }
+}
+
+/**
+ * Helper function to call kernel functions
+ */
+async function _callKernelFunction(
+  kernel: Kernel,
+  server: any,
+  functionName: string,
+  args: Record<string, any>
+): Promise<FunctionResult | null> {
+  // Search for function across all plugins
+  let foundFunc: any = null
+  for (const plugin of kernel.plugins.values()) {
+    const func = plugin.functions.get(functionName)
+    if (func) {
+      foundFunc = func
+      break
+    }
+  }
+
+  if (!foundFunc) {
+    throw new Error(`Function ${functionName} not found`)
+  }
+
+  const kernelArgs = new KernelArguments({ args })
+  // Add server to arguments for potential use
+  kernelArgs.set('server', server)
+
+  return await foundFunc.invoke(kernel, kernelArgs)
 }
 
 // #endregion
