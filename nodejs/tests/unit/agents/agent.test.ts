@@ -389,7 +389,7 @@ name: TestAgent
 `
         const agent = await AgentRegistry.createFromYaml({ yamlStr })
 
-        expect(agent.constructor.name).toBe('TestAgent')
+        expect(agent.constructor.name).toBe('_TestAgent')
       })
 
       test('should throw error when type is missing', async () => {
@@ -415,7 +415,7 @@ type: nonexistent_agent
         const agent = await AgentRegistry.createFromDict({ data })
 
         expect(agent.name).toBe('FromDictAgent')
-        expect(agent.constructor.name).toBe('TestAgent')
+        expect(agent.constructor.name).toBe('_TestAgent')
       })
 
       test('should throw error when type is missing', async () => {
@@ -443,7 +443,7 @@ type: nonexistent_agent
           const agent = await AgentRegistry.createFromFile({ filePath })
 
           expect(agent.name).toBe('FileAgent')
-          expect(agent.constructor.name).toBe('TestAgent')
+          expect(agent.constructor.name).toBe('_TestAgent')
         } finally {
           await fs.unlink(filePath).catch(() => {})
         }
