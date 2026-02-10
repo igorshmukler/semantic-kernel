@@ -7,6 +7,8 @@ import {
   VectorStoreCollectionDefinition,
   VectorStoreField,
 } from '../data/vector'
+import { MemoryConnectorConnectionException } from '../exceptions/memory-connector-exceptions'
+import { VectorStoreModelValidationError, VectorStoreOperationException } from '../exceptions/vector-store-exceptions'
 import { createDefaultLogger } from '../utils/logger'
 
 const logger = createDefaultLogger('PostgresConnector')
@@ -320,7 +322,9 @@ class FilterBuilder {
   private validateField(fieldName: string): string {
     const storageNames = this.definition.fields.map((f) => f.storageName || f.name)
     if (!storageNames.includes(fieldName)) {
-      throw new Error(`Field '${fieldName}' not in data model. Available fields: ${storageNames.join(', ')}`)
+      throw new VectorStoreOperationException(
+        `Field '${fieldName}' not in data model. Available fields: ${storageNames.join(', ')}`
+      )
     }
     return fieldName
   }
@@ -360,7 +364,7 @@ class FilterBuilder {
     } else if (isNotFilter(filter)) {
       return this.buildNotClause(filter)
     }
-    throw new Error(`Unsupported filter type: ${JSON.stringify(filter)}`)
+    throw new VectorStoreOperationException(`Unsupported filter type: ${JSON.stringify(filter)}`)
   }
 
   /**
@@ -385,16 +389,16 @@ class FilterBuilder {
         return `${quotedField} <= ${this.escapeValue(filter.value)}`
       case FilterOperator.IN:
         if (!Array.isArray(filter.value)) {
-          throw new Error('IN operator requires an array value')
+          throw new VectorStoreOperationException('IN operator requires an array value')
         }
         return `${quotedField} IN ${this.escapeValue(filter.value)}`
       case FilterOperator.NOT_IN:
         if (!Array.isArray(filter.value)) {
-          throw new Error('NOT IN operator requires an array value')
+          throw new VectorStoreOperationException('NOT IN operator requires an array value')
         }
         return `${quotedField} NOT IN ${this.escapeValue(filter.value)}`
       default:
-        throw new Error(`Unsupported operator: ${filter.operator}`)
+        throw new VectorStoreOperationException(`Unsupported operator: ${filter.operator}`)
     }
   }
 
@@ -403,7 +407,7 @@ class FilterBuilder {
    */
   private buildLogicalClause(filter: LogicalFilter): string {
     if (filter.filters.length === 0) {
-      throw new Error('Logical filter must have at least one filter')
+      throw new VectorStoreOperationException('Logical filter must have at least one filter')
     }
 
     const clauses = filter.filters.map((f) => this.buildWhereClause(f))
@@ -565,7 +569,9 @@ export class PostgresConfig {
       client.release()
       return pool
     } catch (error) {
-      throw new Error(`Error creating connection pool: ${error}`)
+      throw new MemoryConnectorConnectionException(`Error creating connection pool: ${error}`, {
+        cause: error as Error,
+      })
     }
   }
 }
@@ -622,7 +628,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
       distanceColumnName = `${DISTANCE_COLUMN_NAME}_${suffix}`
       tries++
       if (tries > 10) {
-        throw new Error('Unable to generate a unique distance column name.')
+        throw new VectorStoreModelValidationError('Unable to generate a unique distance column name.')
       }
     }
 
@@ -648,7 +654,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
   private validateDataModel(): void {
     for (const field of this.definition.fields) {
       if (field.fieldType === FieldTypes.VECTOR && field.dimensions && field.dimensions > MAX_DIMENSIONALITY) {
-        throw new Error(
+        throw new VectorStoreModelValidationError(
           `Dimensionality of ${field.dimensions} exceeds the maximum allowed value of ${MAX_DIMENSIONALITY}.`
         )
       }
@@ -660,7 +666,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
    */
   async upsert(records: TModel[]): Promise<TKey[]> {
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const keys: TKey[] = []
@@ -725,7 +731,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     }
 
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const fields = this.definition.fields
@@ -762,7 +768,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
    */
   private async getFiltered(filter: Filter): Promise<TModel[]> {
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const fields = this.definition.fields
@@ -791,7 +797,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
    */
   async *getFilteredStream(filter: Filter): AsyncGenerator<TModel> {
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const fields = this.definition.fields
@@ -847,7 +853,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
    */
   async delete(keys: TKey[]): Promise<void> {
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const client = await this.connectionPool.connect()
@@ -885,14 +891,14 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
    */
   async ensureCollectionExists(): Promise<void> {
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const columnDefinitions: string[] = []
 
     for (const field of this.definition.fields) {
       if (!field.type_) {
-        throw new Error(`Property type is not defined for field '${field.name}'`)
+        throw new VectorStoreModelValidationError(`Property type is not defined for field '${field.name}'`)
       }
 
       const propertyType = pythonTypeToPostgres(field.type_) || field.type_.toUpperCase()
@@ -928,7 +934,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
    */
   async collectionExists(): Promise<boolean> {
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const query = `
@@ -946,7 +952,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
    */
   async ensureCollectionDeleted(): Promise<void> {
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const query = `DROP TABLE "${this.dbSchema}"."${this.collectionName}" CASCADE`
@@ -958,22 +964,22 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
    */
   private async createIndex(tableName: string, vectorField: VectorStoreField): Promise<void> {
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const distanceFunction = vectorField.distanceFunction || DistanceFunction.DEFAULT
     const indexKind = vectorField.indexKind || IndexKind.DEFAULT
 
     if (!(distanceFunction in DISTANCE_FUNCTION_MAP_STRING)) {
-      throw new Error('Distance function must be set for HNSW indexes.')
+      throw new VectorStoreOperationException('Distance function must be set for HNSW indexes.')
     }
 
     if (!(indexKind in INDEX_KIND_MAP)) {
-      throw new Error(`Index kind '${indexKind}' is not supported.`)
+      throw new VectorStoreOperationException(`Index kind '${indexKind}' is not supported.`)
     }
 
     if (indexKind === IndexKind.IVFFlat && distanceFunction === DistanceFunction.ManhattanDistance) {
-      throw new Error('IVF_FLAT index is not supported with MANHATTAN distance function.')
+      throw new VectorStoreOperationException('IVF_FLAT index is not supported with MANHATTAN distance function.')
     }
 
     const columnName = vectorField.storageName || vectorField.name
@@ -1003,7 +1009,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     options: VectorSearchOptions = {}
   ): Promise<KernelSearchResults<VectorSearchResult<TModel>>> {
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const { query, params, returnFields } = this.constructVectorQuery(vector, options)
@@ -1048,7 +1054,7 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
    */
   async *searchStream(vector: number[], options: VectorSearchOptions = {}): AsyncGenerator<VectorSearchResult<TModel>> {
     if (!this.connectionPool) {
-      throw new Error('Connection pool is not available, please call connect() first.')
+      throw new VectorStoreOperationException('Connection pool is not available, please call connect() first.')
     }
 
     const { query, params, returnFields } = this.constructVectorQuery(vector, options)
@@ -1101,12 +1107,14 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
     )
 
     if (!vectorField) {
-      throw new Error(`Vector field '${options.vectorPropertyName}' not found in the data model.`)
+      throw new VectorStoreModelValidationError(
+        `Vector field '${options.vectorPropertyName}' not found in the data model.`
+      )
     }
 
     const distanceFunction = vectorField.distanceFunction || DistanceFunction.DEFAULT
     if (!(distanceFunction in DISTANCE_FUNCTION_MAP_OPS)) {
-      throw new Error(`Distance function '${distanceFunction}' is not supported.`)
+      throw new VectorStoreOperationException(`Distance function '${distanceFunction}' is not supported.`)
     }
 
     // Build select list
