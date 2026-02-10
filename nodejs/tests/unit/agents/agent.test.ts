@@ -206,7 +206,7 @@ describe('Agent', () => {
       const merged = agent['_mergeArguments'](undefined)
 
       expect(merged).toBeInstanceOf(KernelArguments)
-      expect(Object.keys(merged).length).toBe(0)
+      expect(merged.size).toBe(0)
     })
 
     test('should return override when agent arguments is undefined', () => {
@@ -338,7 +338,7 @@ describe('Agent', () => {
     beforeAll(() => {
       // Register test agent type
       @registerAgentType('test_agent')
-      class TestAgent extends Agent {
+      class TestAgent extends DeclarativeSpecMixin {
         static resolvePlaceholders(yamlStr: string, _settings?: any, _extras?: Record<string, any>): string {
           return yamlStr
         }

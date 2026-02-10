@@ -982,8 +982,8 @@ export abstract class DeclarativeSpecMixin extends Agent {
       arguments: arguments_,
     }
 
-    // Handle prompt_template if available
-    const templateData = data.prompt_template || data.template
+    // Handle prompt_template if available (supports both snake_case and camelCase)
+    const templateData = data.prompt_template || data.promptTemplate || data.template
     if (templateData) {
       if (typeof templateData === 'object') {
         logger.debug('Processing prompt template configuration')
