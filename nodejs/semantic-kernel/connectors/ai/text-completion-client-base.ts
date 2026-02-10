@@ -34,6 +34,7 @@ export abstract class TextCompletionClientBase extends AIServiceClientBase {
    * @protected
    * @abstract
    */
+  // eslint-disable-next-line require-yield
   protected async *_innerGetStreamingTextContents(
     _prompt: string,
     _settings: PromptExecutionSettings
