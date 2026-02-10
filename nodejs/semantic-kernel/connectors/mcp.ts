@@ -1,28 +1,26 @@
 // MCP plugin base and implementations for stdio, SSE, streamable HTTP, and websocket clients.
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import { Client } from '@modelcontextprotocol/sdk/client'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket.js'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import type {
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import {
+  CallToolRequestSchema,
   CallToolResult,
   CreateMessageRequest,
   CreateMessageResult,
   EmbeddedResource,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListToolsRequestSchema,
   LoggingLevel,
   AudioContent as McpAudioContent,
   ImageContent as McpImageContent,
   TextContent as McpTextContent,
   Prompt,
   PromptMessage,
-  Tool,
-} from '@modelcontextprotocol/sdk/types.js'
-import {
-  CallToolRequestSchema,
-  GetPromptRequestSchema,
-  ListPromptsRequestSchema,
-  ListToolsRequestSchema,
   SetLevelRequestSchema,
+  Tool,
 } from '@modelcontextprotocol/sdk/types.js'
 import { AudioContent } from '../contents/audio-content'
 import { BinaryContent } from '../contents/binary-content'
@@ -321,7 +319,7 @@ export abstract class MCPPluginBase {
   private exitStack: Array<() => Promise<void>> = []
   private currentTask?: Promise<void>
   private stopEvent?: { wait: () => Promise<void>; set: () => void }
-  private transport?: StdioClientTransport | SSEClientTransport | WebSocketClientTransport
+  private transport?: StdioClientTransport | StreamableHTTPClientTransport | WebSocketClientTransport
 
   constructor(options: MCPPluginBaseOptions) {
     this.name = options.name
@@ -709,7 +707,9 @@ export abstract class MCPPluginBase {
   /**
    * Abstract method to create MCP transport
    */
-  protected abstract createTransport(): Promise<StdioClientTransport | SSEClientTransport | WebSocketClientTransport>
+  protected abstract createTransport(): Promise<
+    StdioClientTransport | StreamableHTTPClientTransport | WebSocketClientTransport
+  >
 
   /**
    * Helper to create an event
@@ -808,9 +808,9 @@ export class MCPSsePlugin extends MCPPluginBase {
     this.sseReadTimeout = options.sseReadTimeout
   }
 
-  protected async createTransport(): Promise<SSEClientTransport> {
+  protected async createTransport(): Promise<StreamableHTTPClientTransport> {
     logger.info('Creating SSE MCP transport')
-    const transport = new SSEClientTransport(new URL(this.url))
+    const transport = new StreamableHTTPClientTransport(new URL(this.url))
     return transport
   }
 }
@@ -839,11 +839,9 @@ export class MCPStreamableHttpPlugin extends MCPPluginBase {
     this.terminateOnClose = options.terminateOnClose
   }
 
-  protected async createTransport(): Promise<SSEClientTransport> {
+  protected async createTransport(): Promise<StreamableHTTPClientTransport> {
     logger.info('Creating Streamable HTTP MCP transport')
-    // Note: Using SSEClientTransport as streamable HTTP uses SSE under the hood
-    // If a dedicated HTTP transport becomes available in the SDK, update this
-    const transport = new SSEClientTransport(new URL(this.url))
+    const transport = new StreamableHTTPClientTransport(new URL(this.url))
     return transport
   }
 }
@@ -890,7 +888,7 @@ export function createMcpServerFromFunctions(
     instructions?: string
     pluginName?: string
   }
-): Server {
+): McpServer {
   const kernel = new Kernel()
   const pluginName = options?.pluginName || 'mcp'
   const functionArray = Array.isArray(functions) ? functions : [functions]
@@ -952,7 +950,7 @@ export function createMcpServerFromKernel(
     instructions?: string
     excludedFunctions?: string | string[]
   }
-): Server {
+): McpServer {
   const serverName = options?.serverName || 'SK'
   const version = options?.version || '1.0.0'
   const instructions = options?.instructions
@@ -964,7 +962,7 @@ export function createMcpServerFromKernel(
   }
 
   // Create the MCP server
-  const server = new Server(
+  const mcpServer = new McpServer(
     {
       name: serverName,
       version,
@@ -978,6 +976,7 @@ export function createMcpServerFromKernel(
       instructions,
     }
   )
+  const server = mcpServer.server
 
   // Get all functions from kernel plugins
   const allFunctions: any[] = []
@@ -1148,7 +1147,7 @@ export function createMcpServerFromKernel(
     return {}
   })
 
-  return server
+  return mcpServer
 }
 
 /**
