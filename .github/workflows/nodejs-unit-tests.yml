@@ -33,13 +33,4 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run tests
-        run: npm test -- --ci --coverage --reporters=default --reporters=jest-junit
-      - name: Surface failing tests
-        if: ${{ !matrix.experimental }}
-        uses: pmeier/pytest-results-action@v0.7.2
-        with:
-          path: nodejs/junit.xml
-          summary: true
-          display-options: fEX
-          fail-on-empty: true
-          title: Test results
+        run: npm test -- --ci --coverage
