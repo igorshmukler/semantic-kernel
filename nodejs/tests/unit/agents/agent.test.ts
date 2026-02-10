@@ -1,4 +1,7 @@
 import { randomUUID } from 'crypto'
+import { promises as fs } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import {
   Agent,
   AgentChannel,
@@ -338,7 +341,7 @@ describe('Agent', () => {
     beforeAll(() => {
       // Register test agent type
       @registerAgentType('test_agent')
-      class TestAgent extends DeclarativeSpecMixin {
+      class _TestAgent extends DeclarativeSpecMixin {
         static resolvePlaceholders(yamlStr: string, _settings?: any, _extras?: Record<string, any>): string {
           return yamlStr
         }
@@ -349,7 +352,7 @@ describe('Agent', () => {
           [key: string]: any
         }): Promise<Agent> {
           const { data, kernel } = options
-          return new TestAgent({
+          return new _TestAgent({
             name: data?.name,
             description: data?.description,
             instructions: data?.instructions,
@@ -432,10 +435,7 @@ type: nonexistent_agent
 
     describe('create from file', () => {
       test('should create agent from file', async () => {
-        const fs = require('fs').promises
-        const path = require('path')
-        const tmpDir = require('os').tmpdir()
-        const filePath = path.join(tmpDir, `spec-${randomUUID()}.yaml`)
+        const filePath = join(tmpdir(), `spec-${randomUUID()}.yaml`)
 
         await fs.writeFile(filePath, 'type: test_agent\nname: FileAgent\n', 'utf-8')
 
