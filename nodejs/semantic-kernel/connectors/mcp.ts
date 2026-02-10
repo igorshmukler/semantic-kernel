@@ -4,6 +4,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket.js'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { INTERNAL_ERROR } from '@modelcontextprotocol/sdk/spec.types.js'
 import {
   CallToolRequestSchema,
   CallToolResult,
@@ -15,6 +16,7 @@ import {
   ListToolsRequestSchema,
   LoggingLevel,
   AudioContent as McpAudioContent,
+  McpError,
   ImageContent as McpImageContent,
   TextContent as McpTextContent,
   Prompt,
@@ -52,8 +54,6 @@ type McpPrompt = Prompt
 type McpEmbeddedResource = EmbeddedResource
 
 const logger = createDefaultLogger('MCP')
-
-const INTERNAL_ERROR = -1 // MCP error code constant
 
 // Map MCP logging levels to logger levels
 const LOG_LEVEL_MAPPING: Record<LoggingLevel, string> = {
@@ -240,7 +240,7 @@ export function kernelContentToMcpContentTypes(
     return messages
   }
 
-  throw new Error(`Unsupported content type: ${typeof content}`)
+  throw McpError.fromError(INTERNAL_ERROR, `Unsupported content type: ${typeof content}`)
 }
 
 /**
@@ -357,11 +357,14 @@ export abstract class MCPPluginBase {
       await readyEvent.wait()
     } catch (error) {
       readyEvent.set()
+
       if (error instanceof Error && error.message.includes('Invalid configuration')) {
         throw error
       }
+
       await this.close()
-      throw new Error(`Failed to enter context manager: ${error}`)
+
+      throw McpError.fromError(INTERNAL_ERROR, `Failed to enter context manager: ${error}`)
     }
   }
 
@@ -396,7 +399,10 @@ export abstract class MCPPluginBase {
       } catch (error) {
         await this.closeExitStack()
         readyEvent.set()
-        throw new Error(`Failed to create transport. Please check your configuration: ${error}`)
+        throw McpError.fromError(
+          INTERNAL_ERROR,
+          `Failed to create transport. Please check your configuration: ${error}`
+        )
       }
 
       try {
@@ -420,7 +426,7 @@ export abstract class MCPPluginBase {
         await this.client.connect(this.transport)
       } catch (error) {
         await this.closeExitStack()
-        throw new Error(`Failed to connect client. Please check your configuration: ${error}`)
+        throw McpError.fromError(INTERNAL_ERROR, `Failed to connect client. Please check your configuration: ${error}`)
       }
     } else {
       // Check if client exists but needs reinitialization
@@ -660,10 +666,16 @@ export abstract class MCPPluginBase {
     kwargs: Record<string, any> = {}
   ): Promise<Array<TextContent | ImageContent | BinaryContent>> {
     if (!this.client) {
-      throw new Error('MCP server not connected, please call connect() before using this method.')
+      throw McpError.fromError(
+        INTERNAL_ERROR,
+        'MCP server not connected, please call connect() before using this method.'
+      )
     }
     if (!this.loadToolsFlag) {
-      throw new Error('Tools are not loaded for this server, please set loadTools=true in the constructor.')
+      throw McpError.fromError(
+        INTERNAL_ERROR,
+        'Tools are not loaded for this server, please set loadTools=true in the constructor.'
+      )
     }
 
     try {
@@ -672,9 +684,9 @@ export abstract class MCPPluginBase {
       if ('content' in result && result.content) {
         return mcpCallToolResultToKernelContents(result as McpCallToolResult)
       }
-      throw new Error(`Tool call returned no content: ${JSON.stringify(result)}`)
+      throw McpError.fromError(INTERNAL_ERROR, `Tool call returned no content: ${JSON.stringify(result)}`)
     } catch (error) {
-      throw new Error(`Failed to call tool '${toolName}': ${error}`)
+      throw McpError.fromError(INTERNAL_ERROR, `Failed to call tool '${toolName}': ${error}`)
     }
   }
 
@@ -683,17 +695,23 @@ export abstract class MCPPluginBase {
    */
   async getPrompt(promptName: string, kwargs: Record<string, any> = {}): Promise<ChatMessageContent[]> {
     if (!this.client) {
-      throw new Error('MCP server not connected, please call connect() before using this method.')
+      throw McpError.fromError(
+        INTERNAL_ERROR,
+        'MCP server not connected, please call connect() before using this method.'
+      )
     }
     if (!this.loadPromptsFlag) {
-      throw new Error('Prompts are not loaded for this server, please set loadPrompts=true in the constructor.')
+      throw McpError.fromError(
+        INTERNAL_ERROR,
+        'Prompts are not loaded for this server, please set loadPrompts=true in the constructor.'
+      )
     }
 
     try {
       const promptResult = await this.client.getPrompt({ name: promptName, arguments: kwargs })
       return promptResult.messages.map(mcpPromptMessageToKernelContent)
     } catch (error) {
-      throw new Error(`Failed to call prompt '${promptName}': ${error}`)
+      throw McpError.fromError(INTERNAL_ERROR, `Failed to call prompt '${promptName}': ${error}`)
     }
   }
 
@@ -998,12 +1016,11 @@ export function createMcpServerFromKernel(
         const required: string[] = []
 
         for (const param of func.parameters) {
-          if (param.name) {
-            properties[param.name] = {
-              type: param.type || 'string',
-              description: param.description || '',
-            }
-            if (param.isRequired) {
+          // Filter by includeInFunctionChoices
+          if (param.name && param.schemaData && param.includeInFunctionChoices !== false) {
+            // Use full JSON schema from schemaData instead of manually building
+            properties[param.name] = param.schemaData
+            if (param.isRequired && param.includeInFunctionChoices !== false) {
               required.push(param.name)
             }
           }
@@ -1066,7 +1083,7 @@ export function createMcpServerFromKernel(
         return { content: messages }
       }
 
-      throw new Error(`Function ${functionName} returned no result`)
+      throw McpError.fromError(INTERNAL_ERROR, `Function ${functionName} returned no result`)
     })
   }
 
@@ -1177,6 +1194,7 @@ async function _log(server: any, level: string, data: any): Promise<void> {
       })
     }
   } catch (error) {
+    logger.warn('Failed to send log message to MCP client:', error)
     // Ignore errors when sending log messages
   }
 }
@@ -1201,7 +1219,7 @@ async function _callKernelFunction(
   }
 
   if (!foundFunc) {
-    throw new Error(`Function ${functionName} not found`)
+    throw McpError.fromError(INTERNAL_ERROR, `Function ${functionName} not found`)
   }
 
   const kernelArgs = new KernelArguments({ args })
