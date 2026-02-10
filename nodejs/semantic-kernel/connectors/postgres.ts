@@ -447,6 +447,8 @@ export interface VectorSearchOptions {
   skip?: number
   filter?: Filter
   includeTotalCount?: boolean
+  /** Use streaming for results (memory efficient for large datasets) */
+  useStreaming?: boolean
 }
 
 export interface VectorSearchResult<T> {
@@ -456,6 +458,51 @@ export interface VectorSearchResult<T> {
 
 export interface GetFilteredRecordOptions {
   filter?: Filter
+}
+
+/**
+ * Wrapper for search results that can be either an array or async generator
+ */
+export class KernelSearchResults<T> {
+  constructor(
+    public results: T[] | AsyncGenerator<T>,
+    public totalCount?: number
+  ) {}
+
+  /**
+   * Check if results are streaming (async generator)
+   */
+  isStreaming(): this is { results: AsyncGenerator<T> } {
+    return typeof (this.results as any)[Symbol.asyncIterator] === 'function'
+  }
+
+  /**
+   * Convert streaming results to array (consumes the generator)
+   */
+  async toArray(): Promise<T[]> {
+    if (!this.isStreaming()) {
+      return this.results as T[]
+    }
+
+    const array: T[] = []
+    for await (const item of this.results as AsyncGenerator<T>) {
+      array.push(item)
+    }
+    return array
+  }
+
+  /**
+   * Get async iterator for results
+   */
+  async *[Symbol.asyncIterator](): AsyncGenerator<T> {
+    if (this.isStreaming()) {
+      yield* this.results as AsyncGenerator<T>
+    } else {
+      for (const item of this.results as T[]) {
+        yield item
+      }
+    }
+  }
 }
 
 // region: Settings
@@ -740,6 +787,62 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
   }
 
   /**
+   * Get records by filter using async generator (streaming)
+   */
+  async *getFilteredStream(filter: Filter): AsyncGenerator<TModel> {
+    if (!this.connectionPool) {
+      throw new Error('Connection pool is not available, please call connect() first.')
+    }
+
+    const fields = this.definition.fields
+    const selectList = fields.map((f) => `"${f.storageName || f.name}"`).join(', ')
+    const filterBuilder = new FilterBuilder(this.definition)
+    const whereClause = filterBuilder.buildWhereClause(filter)
+
+    const query = `
+      SELECT ${selectList}
+      FROM "${this.dbSchema}"."${this.collectionName}"
+      WHERE ${whereClause}
+    `
+
+    const client = await this.connectionPool.connect()
+
+    try {
+      const cursorName = `filter_cursor_${Date.now()}_${Math.random().toString(36).substring(7)}`
+      await client.query('BEGIN')
+      await client.query(`DECLARE ${cursorName} CURSOR FOR ${query}`)
+
+      const batchSize = 100
+      let hasMore = true
+      const fieldTuples: Array<[string, VectorStoreField | null]> = fields.map((f) => [f.storageName || f.name, f])
+
+      while (hasMore) {
+        const result = await client.query(`FETCH ${batchSize} FROM ${cursorName}`)
+
+        if (result.rows.length === 0) {
+          hasMore = false
+        } else {
+          for (const row of result.rows) {
+            yield convertRowToDict(row, fieldTuples) as TModel
+          }
+
+          if (result.rows.length < batchSize) {
+            hasMore = false
+          }
+        }
+      }
+
+      await client.query(`CLOSE ${cursorName}`)
+      await client.query('COMMIT')
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  /**
    * Delete records by keys
    */
   async delete(keys: TKey[]): Promise<void> {
@@ -890,27 +993,101 @@ export class PostgresCollection<TKey extends string | number, TModel extends Rec
 
   /**
    * Vector similarity search
+   *
+   * @param vector - The query vector
+   * @param options - Search options including filter, top, skip, etc.
+   * @returns Search results with optional total count
    */
   async search(
     vector: number[],
     options: VectorSearchOptions = {}
-  ): Promise<{ results: VectorSearchResult<TModel>[]; totalCount?: number }> {
+  ): Promise<KernelSearchResults<VectorSearchResult<TModel>>> {
     if (!this.connectionPool) {
       throw new Error('Connection pool is not available, please call connect() first.')
     }
 
     const { query, params, returnFields } = this.constructVectorQuery(vector, options)
 
+    // If total count is needed, we must fetch all results
     if (options.includeTotalCount) {
       const result = await this.connectionPool.query(query, params)
       const rows = result.rows.map((row) => convertRowToDict(row, returnFields))
       const results = rows.map((row) => this.getVectorSearchResultFromRow(row))
-      return { results, totalCount: results.length }
-    } else {
-      const result = await this.connectionPool.query(query, params)
-      const rows = result.rows.map((row) => convertRowToDict(row, returnFields))
-      const results = rows.map((row) => this.getVectorSearchResultFromRow(row))
-      return { results }
+      return new KernelSearchResults(results, results.length)
+    }
+
+    // Use streaming if requested or by default when total count not needed
+    if (options.useStreaming !== false) {
+      const resultsGenerator = this.searchStream(vector, options)
+      return new KernelSearchResults(resultsGenerator)
+    }
+
+    // Fallback to fetching all results at once
+    const result = await this.connectionPool.query(query, params)
+    const rows = result.rows.map((row) => convertRowToDict(row, returnFields))
+    const results = rows.map((row) => this.getVectorSearchResultFromRow(row))
+    return new KernelSearchResults(results)
+  }
+
+  /**
+   * Vector similarity search with streaming results (async generator)
+   *
+   * This method is memory-efficient for large result sets as it streams
+   * results one at a time instead of loading everything into memory.
+   *
+   * @param vector - The query vector
+   * @param options - Search options including filter, top, skip, etc.
+   * @returns Async generator of search results
+   *
+   * @example
+   * ```typescript
+   * for await (const result of collection.searchStream(vector, { top: 1000 })) {
+   *   console.log(result.record, result.score)
+   * }
+   * ```
+   */
+  async *searchStream(vector: number[], options: VectorSearchOptions = {}): AsyncGenerator<VectorSearchResult<TModel>> {
+    if (!this.connectionPool) {
+      throw new Error('Connection pool is not available, please call connect() first.')
+    }
+
+    const { query, params, returnFields } = this.constructVectorQuery(vector, options)
+    const client = await this.connectionPool.connect()
+
+    try {
+      // Create a cursor for streaming
+      const cursorName = `search_cursor_${Date.now()}_${Math.random().toString(36).substring(7)}`
+      await client.query('BEGIN')
+      await client.query(`DECLARE ${cursorName} CURSOR FOR ${query}`, params)
+
+      // Fetch results in batches and yield one by one
+      const batchSize = 100
+      let hasMore = true
+
+      while (hasMore) {
+        const result = await client.query(`FETCH ${batchSize} FROM ${cursorName}`)
+
+        if (result.rows.length === 0) {
+          hasMore = false
+        } else {
+          for (const row of result.rows) {
+            const dict = convertRowToDict(row, returnFields)
+            yield this.getVectorSearchResultFromRow(dict)
+          }
+
+          if (result.rows.length < batchSize) {
+            hasMore = false
+          }
+        }
+      }
+
+      await client.query(`CLOSE ${cursorName}`)
+      await client.query('COMMIT')
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
     }
   }
 
