@@ -205,19 +205,22 @@ class ResponseMessageEnvelope {
   recipient: AgentId | null
   resolve: (value: any) => void
   metadata: EnvelopeMetadata | null
+  cancellationToken: CancellationToken
 
   constructor(
     message: any,
     sender: AgentId,
     recipient: AgentId | null,
     resolve: (value: any) => void,
-    metadata: EnvelopeMetadata | null = null
+    metadata: EnvelopeMetadata | null = null,
+    cancellationToken: CancellationToken = new CancellationToken()
   ) {
     this.message = message
     this.sender = sender
     this.recipient = recipient
     this.resolve = resolve
     this.metadata = metadata
+    this.cancellationToken = cancellationToken
   }
 }
 
@@ -678,10 +681,9 @@ export class InProcessRuntime implements CoreRuntime {
           }
         }
 
+        // Process response synchronously (not as background task)
         if (shouldProcess) {
-          const task = this._processResponse(messageEnvelope)
-          this._backgroundTasks.add(task)
-          task.finally(() => this._backgroundTasks.delete(task))
+          await this._processResponse(messageEnvelope)
         }
       }
     } finally {
@@ -750,7 +752,9 @@ export class InProcessRuntime implements CoreRuntime {
           response,
           messageEnvelope.recipient,
           messageEnvelope.sender,
-          messageEnvelope.resolve
+          messageEnvelope.resolve,
+          messageEnvelope.metadata,
+          messageEnvelope.cancellationToken
         )
         await this._messageQueue.put(responseEnvelope)
         this._messageQueue.taskDone()
@@ -762,7 +766,7 @@ export class InProcessRuntime implements CoreRuntime {
           err.name === 'AbortError' ||
           err.name === 'CancelledError' ||
           err.name === 'CancellationError' ||
-          messageEnvelope.cancellationToken.isCancelled
+          messageEnvelope.cancellationToken.isCancelled()
 
         if (isCancellationError) {
           // Handle cancellation specifically - only reject if not already settled
@@ -871,7 +875,10 @@ export class InProcessRuntime implements CoreRuntime {
         deliveryStage: DeliveryStage.DELIVER,
       })
 
-      messageEnvelope.resolve(messageEnvelope.message)
+      // Check if the operation was cancelled before resolving
+      if (!messageEnvelope.cancellationToken.isCancelled()) {
+        messageEnvelope.resolve(messageEnvelope.message)
+      }
       this._messageQueue.taskDone()
     })
   }
