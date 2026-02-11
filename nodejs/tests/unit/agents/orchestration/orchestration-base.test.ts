@@ -1,3 +1,5 @@
+/// <reference path="../../../setup.d.ts" />
+
 import { Agent, AgentResponseItem } from '../../../../semantic-kernel/agents/agent'
 import {
     OrchestrationBase,
