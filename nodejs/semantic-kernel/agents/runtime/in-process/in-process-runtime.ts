@@ -223,6 +223,73 @@ class ResponseMessageEnvelope {
 type MessageEnvelope = PublishMessageEnvelope | SendMessageEnvelope | ResponseMessageEnvelope
 
 /**
+ * A queue implementation with task tracking similar to Python's asyncio.Queue.
+ * Supports task_done() and join() for waiting until all enqueued tasks are processed.
+ */
+class Queue<T> {
+  private _queue: T[] = []
+  private _unfinishedTasks = 0
+  private _finishedEvent: Promise<void> | null = null
+  private _finishedResolve: (() => void) | null = null
+  private _shutdown = false
+
+  get size(): number {
+    return this._queue.length
+  }
+
+  async put(item: T): Promise<void> {
+    if (this._shutdown) {
+      throw new Error('Queue is shut down')
+    }
+    this._queue.push(item)
+    this._unfinishedTasks++
+  }
+
+  async get(): Promise<T | undefined> {
+    if (this._shutdown && this._queue.length === 0) {
+      return undefined
+    }
+    return this._queue.shift()
+  }
+
+  taskDone(): void {
+    if (this._unfinishedTasks <= 0) {
+      throw new Error('taskDone() called too many times')
+    }
+    this._unfinishedTasks--
+    if (this._unfinishedTasks === 0 && this._finishedResolve) {
+      this._finishedResolve()
+      this._finishedEvent = null
+      this._finishedResolve = null
+    }
+  }
+
+  async join(): Promise<void> {
+    while (this._unfinishedTasks > 0) {
+      if (!this._finishedEvent) {
+        this._finishedEvent = new Promise((resolve) => {
+          this._finishedResolve = resolve
+        })
+      }
+      await this._finishedEvent
+    }
+  }
+
+  shutdown(immediate: boolean = false): void {
+    this._shutdown = true
+    if (immediate) {
+      this._queue = []
+      this._unfinishedTasks = 0
+      if (this._finishedResolve) {
+        this._finishedResolve()
+        this._finishedEvent = null
+        this._finishedResolve = null
+      }
+    }
+  }
+}
+
+/**
  * Subscription manager to handle topic subscriptions.
  */
 class SubscriptionManager {
@@ -292,7 +359,7 @@ class SubscriptionManager {
  */
 @experimental
 export class InProcessRuntime implements CoreRuntime {
-  public _messageQueue: MessageEnvelope[] = []
+  public _messageQueue: Queue<MessageEnvelope> = new Queue()
   public _shutdown = false
   public _processing = false
 
@@ -324,7 +391,7 @@ export class InProcessRuntime implements CoreRuntime {
    * Get the number of unprocessed messages in the queue.
    */
   get unprocessedMessagesCount(): number {
-    return this._messageQueue.length
+    return this._messageQueue.size
   }
 
   /**
@@ -377,7 +444,7 @@ export class InProcessRuntime implements CoreRuntime {
             reject,
             metadata
           )
-          this._messageQueue.push(envelope)
+          this._messageQueue.put(envelope)
         })
       },
       { extraAttributes: { messageType: message.constructor?.name } }
@@ -418,7 +485,7 @@ export class InProcessRuntime implements CoreRuntime {
       async () => {
         const metadata = getTelemetryEnvelopeMetadata()
         const envelope = new PublishMessageEnvelope(message, cancellationToken, sender, topicId, messageId, metadata)
-        this._messageQueue.push(envelope)
+        await this._messageQueue.put(envelope)
       },
       { extraAttributes: { messageType: message.constructor?.name } }
     )
@@ -448,9 +515,14 @@ export class InProcessRuntime implements CoreRuntime {
       return
     }
 
-    const messageEnvelope = this._messageQueue.shift()
+    const messageEnvelope = await this._messageQueue.get()
     if (!messageEnvelope) {
-      // No message to process, wait a bit
+      // No message to process or queue is shutdown
+      if (this._shutdown && this._backgroundException) {
+        const e = this._backgroundException
+        this._backgroundException = null
+        throw e
+      }
       await new Promise((resolve) => setTimeout(resolve, 10))
       return
     }
@@ -486,12 +558,14 @@ export class InProcessRuntime implements CoreRuntime {
                   kind: MessageKind.DIRECT,
                 })
                 messageEnvelope.reject(new MessageDroppedException())
+                this._messageQueue.taskDone()
                 this._processing = false
                 return
               }
               messageEnvelope.message = tempMessage
             } catch (error) {
               messageEnvelope.reject(error)
+              this._messageQueue.taskDone()
               this._processing = false
               return
             }
@@ -526,12 +600,14 @@ export class InProcessRuntime implements CoreRuntime {
                   receiver: messageEnvelope.topicId,
                   kind: MessageKind.PUBLISH,
                 })
+                this._messageQueue.taskDone()
                 this._processing = false
                 return
               }
               messageEnvelope.message = tempMessage
             } catch (error) {
               logger.error('Exception raised in intervention handler:', error)
+              this._messageQueue.taskDone()
               this._processing = false
               return
             }
@@ -562,12 +638,14 @@ export class InProcessRuntime implements CoreRuntime {
                   kind: MessageKind.RESPOND,
                 })
                 messageEnvelope.resolve(new MessageDroppedException())
+                this._messageQueue.taskDone()
                 this._processing = false
                 return
               }
               messageEnvelope.message = tempMessage
             } catch (error) {
               messageEnvelope.resolve(error)
+              this._messageQueue.taskDone()
               this._processing = false
               return
             }
@@ -636,14 +714,40 @@ export class InProcessRuntime implements CoreRuntime {
           messageEnvelope.sender,
           messageEnvelope.resolve
         )
-        this._messageQueue.push(responseEnvelope)
+        await this._messageQueue.put(responseEnvelope)
+        this._messageQueue.taskDone()
       } catch (error) {
+        const err = error as Error
+
+        // Check if this is a cancellation error
+        const isCancellationError =
+          err.name === 'AbortError' ||
+          err.name === 'CancelledError' ||
+          err.name === 'CancellationError' ||
+          messageEnvelope.cancellationToken.isCancelled
+
+        if (isCancellationError) {
+          // Handle cancellation specifically - only reject if not already settled
+          logMessageHandlerExceptionEvent({
+            payload: this._trySerialize(messageEnvelope.message),
+            handlingAgent: recipient,
+            exception: err,
+          })
+          // In JavaScript, we can't check if a promise is settled, so we always reject
+          // The consumer should handle the cancellation appropriately
+          messageEnvelope.reject(err)
+          this._messageQueue.taskDone()
+          return
+        }
+
+        // Handle other exceptions
         logMessageHandlerExceptionEvent({
           payload: this._trySerialize(messageEnvelope.message),
           handlingAgent: recipient,
-          exception: error as Error,
+          exception: err,
         })
-        messageEnvelope.reject(error)
+        messageEnvelope.reject(err)
+        this._messageQueue.taskDone()
       }
     })
   }
@@ -705,6 +809,8 @@ export class InProcessRuntime implements CoreRuntime {
       await Promise.all(responses)
     } catch (error) {
       this._backgroundException = error as Error
+    } finally {
+      this._messageQueue.taskDone()
     }
   }
 
@@ -723,6 +829,7 @@ export class InProcessRuntime implements CoreRuntime {
     })
 
     messageEnvelope.resolve(messageEnvelope.message)
+    this._messageQueue.taskDone()
   }
 
   /**
@@ -761,7 +868,7 @@ export class InProcessRuntime implements CoreRuntime {
       await this._runContext.stop()
     } finally {
       this._runContext = null
-      this._messageQueue = []
+      this._messageQueue = new Queue()
     }
   }
 
@@ -777,7 +884,7 @@ export class InProcessRuntime implements CoreRuntime {
       await this._runContext.stopWhenIdle()
     } finally {
       this._runContext = null
-      this._messageQueue = []
+      this._messageQueue = new Queue()
     }
   }
 
@@ -791,7 +898,7 @@ export class InProcessRuntime implements CoreRuntime {
 
     await this._runContext.stopWhen(condition)
     this._runContext = null
-    this._messageQueue = []
+    this._messageQueue = new Queue()
   }
 
   /**
@@ -1011,17 +1118,21 @@ class RunContext {
   async stop(): Promise<void> {
     this._stopped = true
     this._runtime._shutdown = true
+    this._runtime._messageQueue.shutdown(true)
     if (this._runPromise) {
       await this._runPromise
     }
   }
 
   async stopWhenIdle(): Promise<void> {
-    // Wait until the queue is empty
-    while (this._runtime._messageQueue.length > 0 || this._runtime._processing) {
-      await new Promise((resolve) => setTimeout(resolve, 10))
+    // Wait until all tasks are done
+    await this._runtime._messageQueue.join()
+    this._stopped = true
+    this._runtime._shutdown = true
+    this._runtime._messageQueue.shutdown(true)
+    if (this._runPromise) {
+      await this._runPromise
     }
-    await this.stop()
   }
 
   async stopWhen(condition: () => boolean, checkPeriod: number = 1000): Promise<void> {
