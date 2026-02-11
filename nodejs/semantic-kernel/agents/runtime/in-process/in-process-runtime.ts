@@ -22,6 +22,7 @@ import {
   TraceHelper,
 } from '../core/telemetry'
 import { TopicId } from '../core/topic'
+import { MessageHandlerContext } from './message-handler-context'
 
 const logger = createDefaultLogger('InProcessRuntime')
 
@@ -532,93 +533,118 @@ export class InProcessRuntime implements CoreRuntime {
     try {
       if (messageEnvelope instanceof SendMessageEnvelope) {
         // Apply intervention handlers for send messages
+        let shouldProcess = true
         if (this._interventionHandlers) {
           for (const handler of this._interventionHandlers) {
-            try {
-              const messageContext = new MessageContext({
-                sender: messageEnvelope.sender || undefined,
-                topicId: undefined,
-                isRpc: true,
-                cancellationToken: messageEnvelope.cancellationToken,
-                messageId: messageEnvelope.messageId,
-              })
-              const tempMessage = await handler.onSend(
-                messageEnvelope.message,
-                messageContext,
-                messageEnvelope.recipient
-              )
-              warnIfUndefined(tempMessage, 'onSend')
+            await this._tracerHelper.traceBlock(
+              'intercept',
+              handler.constructor.name,
+              messageEnvelope.metadata,
+              async () => {
+                try {
+                  const messageContext = new MessageContext({
+                    sender: messageEnvelope.sender || undefined,
+                    topicId: undefined,
+                    isRpc: true,
+                    cancellationToken: messageEnvelope.cancellationToken,
+                    messageId: messageEnvelope.messageId,
+                  })
+                  const tempMessage = await handler.onSend(
+                    messageEnvelope.message,
+                    messageContext,
+                    messageEnvelope.recipient
+                  )
+                  warnIfUndefined(tempMessage, 'onSend')
 
-              if (tempMessage === DropMessage) {
-                logger.info(`Message dropped by intervention handler for recipient ${messageEnvelope.recipient.type}`)
-                logMessageDroppedEvent({
-                  payload: this._trySerialize(messageEnvelope.message),
-                  sender: messageEnvelope.sender,
-                  receiver: messageEnvelope.recipient,
-                  kind: MessageKind.DIRECT,
-                })
-                messageEnvelope.reject(new MessageDroppedException())
-                this._messageQueue.taskDone()
-                this._processing = false
-                return
+                  if (tempMessage === DropMessage) {
+                    logger.info(
+                      `Message dropped by intervention handler for recipient ${messageEnvelope.recipient.type}`
+                    )
+                    logMessageDroppedEvent({
+                      payload: this._trySerialize(messageEnvelope.message),
+                      sender: messageEnvelope.sender,
+                      receiver: messageEnvelope.recipient,
+                      kind: MessageKind.DIRECT,
+                    })
+                    messageEnvelope.reject(new MessageDroppedException())
+                    this._messageQueue.taskDone()
+                    shouldProcess = false
+                    return
+                  }
+                  messageEnvelope.message = tempMessage
+                } catch (error) {
+                  messageEnvelope.reject(error)
+                  this._messageQueue.taskDone()
+                  shouldProcess = false
+                  return
+                }
               }
-              messageEnvelope.message = tempMessage
-            } catch (error) {
-              messageEnvelope.reject(error)
-              this._messageQueue.taskDone()
-              this._processing = false
-              return
-            }
+            )
+            if (!shouldProcess) break
           }
         }
 
-        const task = this._processSend(messageEnvelope)
-        this._backgroundTasks.add(task)
-        task.finally(() => this._backgroundTasks.delete(task))
+        if (shouldProcess) {
+          const task = this._processSend(messageEnvelope)
+          this._backgroundTasks.add(task)
+          task.finally(() => this._backgroundTasks.delete(task))
+        }
       } else if (messageEnvelope instanceof PublishMessageEnvelope) {
         // Apply intervention handlers for publish messages
+        let shouldProcess = true
         if (this._interventionHandlers) {
           for (const handler of this._interventionHandlers) {
-            try {
-              const messageContext = new MessageContext({
-                sender: messageEnvelope.sender || undefined,
-                topicId: messageEnvelope.topicId,
-                isRpc: false,
-                cancellationToken: messageEnvelope.cancellationToken,
-                messageId: messageEnvelope.messageId,
-              })
-              const tempMessage = await handler.onPublish(messageEnvelope.message, messageContext)
-              warnIfUndefined(tempMessage, 'onPublish')
+            await this._tracerHelper.traceBlock(
+              'intercept',
+              handler.constructor.name,
+              messageEnvelope.metadata,
+              async () => {
+                try {
+                  const messageContext = new MessageContext({
+                    sender: messageEnvelope.sender || undefined,
+                    topicId: messageEnvelope.topicId,
+                    isRpc: false,
+                    cancellationToken: messageEnvelope.cancellationToken,
+                    messageId: messageEnvelope.messageId,
+                  })
+                  const tempMessage = await handler.onPublish(messageEnvelope.message, messageContext)
+                  warnIfUndefined(tempMessage, 'onPublish')
 
-              if (tempMessage === DropMessage) {
-                logger.info(
-                  `Published message dropped by intervention handler for topic ${messageEnvelope.topicId.toString()}`
-                )
-                logMessageDroppedEvent({
-                  payload: this._trySerialize(messageEnvelope.message),
-                  sender: messageEnvelope.sender,
-                  receiver: messageEnvelope.topicId,
-                  kind: MessageKind.PUBLISH,
-                })
-                this._messageQueue.taskDone()
-                this._processing = false
-                return
+                  if (tempMessage === DropMessage) {
+                    logger.info(
+                      `Published message dropped by intervention handler for topic ${messageEnvelope.topicId.toString()}`
+                    )
+                    logMessageDroppedEvent({
+                      payload: this._trySerialize(messageEnvelope.message),
+                      sender: messageEnvelope.sender,
+                      receiver: messageEnvelope.topicId,
+                      kind: MessageKind.PUBLISH,
+                    })
+                    this._messageQueue.taskDone()
+                    shouldProcess = false
+                    return
+                  }
+                  messageEnvelope.message = tempMessage
+                } catch (error) {
+                  logger.error('Exception raised in intervention handler:', error)
+                  this._messageQueue.taskDone()
+                  shouldProcess = false
+                  return
+                }
               }
-              messageEnvelope.message = tempMessage
-            } catch (error) {
-              logger.error('Exception raised in intervention handler:', error)
-              this._messageQueue.taskDone()
-              this._processing = false
-              return
-            }
+            )
+            if (!shouldProcess) break
           }
         }
 
-        const task = this._processPublish(messageEnvelope)
-        this._backgroundTasks.add(task)
-        task.finally(() => this._backgroundTasks.delete(task))
+        if (shouldProcess) {
+          const task = this._processPublish(messageEnvelope)
+          this._backgroundTasks.add(task)
+          task.finally(() => this._backgroundTasks.delete(task))
+        }
       } else if (messageEnvelope instanceof ResponseMessageEnvelope) {
         // Apply intervention handlers for response messages
+        let shouldProcess = true
         if (this._interventionHandlers) {
           for (const handler of this._interventionHandlers) {
             try {
@@ -639,22 +665,24 @@ export class InProcessRuntime implements CoreRuntime {
                 })
                 messageEnvelope.resolve(new MessageDroppedException())
                 this._messageQueue.taskDone()
-                this._processing = false
-                return
+                shouldProcess = false
+                break
               }
               messageEnvelope.message = tempMessage
             } catch (error) {
               messageEnvelope.resolve(error)
               this._messageQueue.taskDone()
-              this._processing = false
-              return
+              shouldProcess = false
+              break
             }
           }
         }
 
-        const task = this._processResponse(messageEnvelope)
-        this._backgroundTasks.add(task)
-        task.finally(() => this._backgroundTasks.delete(task))
+        if (shouldProcess) {
+          const task = this._processResponse(messageEnvelope)
+          this._backgroundTasks.add(task)
+          task.finally(() => this._backgroundTasks.delete(task))
+        }
       }
     } finally {
       this._processing = false
@@ -697,7 +725,17 @@ export class InProcessRuntime implements CoreRuntime {
           messageId: messageEnvelope.messageId,
         })
 
-        const response = await recipientAgent.onMessage(messageEnvelope.message, messageContext)
+        // Wrap message processing with 'process' tracing and MessageHandlerContext
+        const response = await this._tracerHelper.traceBlock(
+          'process',
+          recipientAgent.id,
+          messageEnvelope.metadata,
+          async () => {
+            return MessageHandlerContext.populateContext(recipientAgent.id, async () => {
+              return await recipientAgent.onMessage(messageEnvelope.message, messageContext)
+            })
+          }
+        )
 
         logMessageEvent({
           payload: this._trySerialize(response),
@@ -787,20 +825,24 @@ export class InProcessRuntime implements CoreRuntime {
         const agent = await this._getAgent(agentId)
 
         const onMessage = async (): Promise<any> => {
-          try {
-            return await agent.onMessage(messageEnvelope.message, messageContext)
-          } catch (error) {
-            logger.error(`Error processing publish message for ${agentId}`, error)
-            logMessageHandlerExceptionEvent({
-              payload: this._trySerialize(messageEnvelope.message),
-              handlingAgent: agentId,
-              exception: error as Error,
+          return this._tracerHelper.traceBlock('process', agent.id, messageEnvelope.metadata, async () => {
+            return MessageHandlerContext.populateContext(agent.id, async () => {
+              try {
+                return await agent.onMessage(messageEnvelope.message, messageContext)
+              } catch (error) {
+                logger.error(`Error processing publish message for ${agentId}`, error)
+                logMessageHandlerExceptionEvent({
+                  payload: this._trySerialize(messageEnvelope.message),
+                  handlingAgent: agentId,
+                  exception: error as Error,
+                })
+                if (!this._ignoreUnhandledHandlerExceptions) {
+                  throw error
+                }
+                return undefined
+              }
             })
-            if (!this._ignoreUnhandledHandlerExceptions) {
-              throw error
-            }
-            return undefined
-          }
+          })
         }
 
         responses.push(onMessage())
@@ -815,21 +857,23 @@ export class InProcessRuntime implements CoreRuntime {
   }
 
   private async _processResponse(messageEnvelope: ResponseMessageEnvelope): Promise<void> {
-    const content = (messageEnvelope.message as any).__dict || messageEnvelope.message
-    logger.info(
-      `Resolving response with message type ${messageEnvelope.message.constructor.name} for recipient ${messageEnvelope.recipient} from ${messageEnvelope.sender.type}: ${JSON.stringify(content)}`
-    )
+    await this._tracerHelper.traceBlock('ack', messageEnvelope.recipient, messageEnvelope.metadata, async () => {
+      const content = (messageEnvelope.message as any).__dict || messageEnvelope.message
+      logger.info(
+        `Resolving response with message type ${messageEnvelope.message.constructor.name} for recipient ${messageEnvelope.recipient} from ${messageEnvelope.sender.type}: ${JSON.stringify(content)}`
+      )
 
-    logMessageEvent({
-      payload: this._trySerialize(content),
-      sender: messageEnvelope.sender,
-      receiver: messageEnvelope.recipient,
-      kind: MessageKind.RESPOND,
-      deliveryStage: DeliveryStage.DELIVER,
+      logMessageEvent({
+        payload: this._trySerialize(content),
+        sender: messageEnvelope.sender,
+        receiver: messageEnvelope.recipient,
+        kind: MessageKind.RESPOND,
+        deliveryStage: DeliveryStage.DELIVER,
+      })
+
+      messageEnvelope.resolve(messageEnvelope.message)
+      this._messageQueue.taskDone()
     })
-
-    messageEnvelope.resolve(messageEnvelope.message)
-    this._messageQueue.taskDone()
   }
 
   /**
