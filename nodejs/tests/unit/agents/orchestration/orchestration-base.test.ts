@@ -32,7 +32,7 @@ class MockAgent extends Agent {
 }
 
 // Test implementation of OrchestrationBase
-class TestOrchestration extends OrchestrationBase {
+class TestOrchestration<TIn = any, TOut = any> extends OrchestrationBase<TIn, TOut> {
   protected async _start(): Promise<void> {
     // Test implementation
   }
@@ -112,7 +112,7 @@ describe('OrchestrationBase', () => {
 
     test('should invoke with custom type', async () => {
       const agent = new MockAgent({ id: 'test', name: 'Test Agent' })
-      const orch = new TestOrchestration({ members: [agent] })
+      const orch = new TestOrchestration<any, any>({ members: [agent] })
       const runtime = {} as CoreRuntime
       const customInput = { field: 'value' }
       const result = await orch.invoke(customInput, runtime)
@@ -124,7 +124,7 @@ describe('OrchestrationBase', () => {
       const inputTransform = async (input: any) => {
         return new ChatMessageContent({ role: AuthorRole.USER, content: JSON.stringify(input) })
       }
-      const orch = new TestOrchestration({ members: [agent], inputTransform })
+      const orch = new TestOrchestration<any, any>({ members: [agent], inputTransform })
       const runtime = {} as CoreRuntime
       const customInput = { field: 'value' }
       const result = await orch.invoke(customInput, runtime)

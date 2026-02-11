@@ -1,6 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "composite": true,
     "types": ["node", "@jest/globals"],
     "noUnusedLocals": false,
     "noUnusedParameters": false
