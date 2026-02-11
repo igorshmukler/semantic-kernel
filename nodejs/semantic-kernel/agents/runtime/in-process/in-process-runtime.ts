@@ -1,3 +1,4 @@
+import type { TracerProvider } from '@opentelemetry/api'
 import { randomUUID } from 'crypto'
 import { experimental } from '../../../utils/feature-stage-decorator'
 import { createDefaultLogger } from '../../../utils/logger'
@@ -14,6 +15,12 @@ import { DropMessage, InterventionHandler } from '../core/intervention'
 import { MessageContext } from '../core/message-context'
 import { JSON_DATA_CONTENT_TYPE, MessageSerializer, SerializationRegistry } from '../core/serialization'
 import { Subscription } from '../core/subscription'
+import {
+  EnvelopeMetadata,
+  getTelemetryEnvelopeMetadata,
+  MessageRuntimeTracingConfig,
+  TraceHelper,
+} from '../core/telemetry'
 import { TopicId } from '../core/topic'
 
 const logger = createDefaultLogger('InProcessRuntime')
@@ -133,19 +140,22 @@ class PublishMessageEnvelope {
   sender: AgentId | null
   topicId: TopicId
   messageId: string
+  metadata: EnvelopeMetadata | null
 
   constructor(
     message: any,
     cancellationToken: CancellationToken,
     sender: AgentId | null,
     topicId: TopicId,
-    messageId: string
+    messageId: string,
+    metadata: EnvelopeMetadata | null = null
   ) {
     this.message = message
     this.cancellationToken = cancellationToken
     this.sender = sender
     this.topicId = topicId
     this.messageId = messageId
+    this.metadata = metadata
   }
 }
 
@@ -161,6 +171,7 @@ class SendMessageEnvelope {
   messageId: string
   resolve: (value: any) => void
   reject: (reason?: any) => void
+  metadata: EnvelopeMetadata | null
 
   constructor(
     message: any,
@@ -169,7 +180,8 @@ class SendMessageEnvelope {
     cancellationToken: CancellationToken,
     messageId: string,
     resolve: (value: any) => void,
-    reject: (reason?: any) => void
+    reject: (reason?: any) => void,
+    metadata: EnvelopeMetadata | null = null
   ) {
     this.message = message
     this.sender = sender
@@ -178,6 +190,7 @@ class SendMessageEnvelope {
     this.messageId = messageId
     this.resolve = resolve
     this.reject = reject
+    this.metadata = metadata
   }
 }
 
@@ -190,12 +203,20 @@ class ResponseMessageEnvelope {
   sender: AgentId
   recipient: AgentId | null
   resolve: (value: any) => void
+  metadata: EnvelopeMetadata | null
 
-  constructor(message: any, sender: AgentId, recipient: AgentId | null, resolve: (value: any) => void) {
+  constructor(
+    message: any,
+    sender: AgentId,
+    recipient: AgentId | null,
+    resolve: (value: any) => void,
+    metadata: EnvelopeMetadata | null = null
+  ) {
     this.message = message
     this.sender = sender
     this.recipient = recipient
     this.resolve = resolve
+    this.metadata = metadata
   }
 }
 
@@ -283,9 +304,20 @@ export class InProcessRuntime implements CoreRuntime {
   private _backgroundException: Error | null = null
   private _interventionHandlers: InterventionHandler[] | null = null
   private _serializationRegistry = new SerializationRegistry()
+  private _tracerHelper: TraceHelper<any, any, any>
+  private _ignoreUnhandledHandlerExceptions: boolean
 
-  constructor(options?: { interventionHandlers?: InterventionHandler[] }) {
+  constructor(options?: {
+    interventionHandlers?: InterventionHandler[]
+    tracerProvider?: TracerProvider | null
+    ignoreUnhandledExceptions?: boolean
+  }) {
     this._interventionHandlers = options?.interventionHandlers || null
+    this._ignoreUnhandledHandlerExceptions = options?.ignoreUnhandledExceptions ?? true
+    this._tracerHelper = new TraceHelper(
+      options?.tracerProvider || null,
+      new MessageRuntimeTracingConfig('InProcessRuntime')
+    )
   }
 
   /**
@@ -322,23 +354,34 @@ export class InProcessRuntime implements CoreRuntime {
       deliveryStage: DeliveryStage.SEND,
     })
 
-    return new Promise((resolve, reject) => {
-      if (!this._agentFactories.has(recipient.type)) {
-        reject(new Error('Recipient not found'))
-        return
-      }
+    return this._tracerHelper.traceBlock(
+      'create',
+      recipient,
+      null,
+      async () => {
+        const metadata = getTelemetryEnvelopeMetadata()
 
-      const envelope = new SendMessageEnvelope(
-        message,
-        sender,
-        recipient,
-        cancellationToken,
-        messageId,
-        resolve,
-        reject
-      )
-      this._messageQueue.push(envelope)
-    })
+        return new Promise((resolve, reject) => {
+          if (!this._agentFactories.has(recipient.type)) {
+            reject(new Error('Recipient not found'))
+            return
+          }
+
+          const envelope = new SendMessageEnvelope(
+            message,
+            sender,
+            recipient,
+            cancellationToken,
+            messageId,
+            resolve,
+            reject,
+            metadata
+          )
+          this._messageQueue.push(envelope)
+        })
+      },
+      { extraAttributes: { messageType: message.constructor?.name } }
+    )
   }
 
   /**
@@ -368,8 +411,17 @@ export class InProcessRuntime implements CoreRuntime {
       deliveryStage: DeliveryStage.SEND,
     })
 
-    const envelope = new PublishMessageEnvelope(message, cancellationToken, sender, topicId, messageId)
-    this._messageQueue.push(envelope)
+    await this._tracerHelper.traceBlock(
+      'create',
+      topicId,
+      null,
+      async () => {
+        const metadata = getTelemetryEnvelopeMetadata()
+        const envelope = new PublishMessageEnvelope(message, cancellationToken, sender, topicId, messageId, metadata)
+        this._messageQueue.push(envelope)
+      },
+      { extraAttributes: { messageType: message.constructor?.name } }
+    )
   }
 
   /**
@@ -535,63 +587,65 @@ export class InProcessRuntime implements CoreRuntime {
   }
 
   private async _processSend(messageEnvelope: SendMessageEnvelope): Promise<void> {
-    const recipient = messageEnvelope.recipient
+    await this._tracerHelper.traceBlock('send', messageEnvelope.recipient, messageEnvelope.metadata, async () => {
+      const recipient = messageEnvelope.recipient
 
-    if (!this._agentFactories.has(recipient.type)) {
-      messageEnvelope.reject(new Error(`Agent type '${recipient.type}' does not exist.`))
-      return
-    }
+      if (!this._agentFactories.has(recipient.type)) {
+        messageEnvelope.reject(new Error(`Agent type '${recipient.type}' does not exist.`))
+        return
+      }
 
-    try {
-      const senderIdStr = messageEnvelope.sender ? messageEnvelope.sender.toString() : 'Unknown'
-      logger.info(
-        `Calling message handler for ${recipient} with message type ${messageEnvelope.message.constructor.name} sent by ${senderIdStr}`
-      )
+      try {
+        const senderIdStr = messageEnvelope.sender ? messageEnvelope.sender.toString() : 'Unknown'
+        logger.info(
+          `Calling message handler for ${recipient} with message type ${messageEnvelope.message.constructor.name} sent by ${senderIdStr}`
+        )
 
-      logMessageEvent({
-        payload: this._trySerialize(messageEnvelope.message),
-        sender: messageEnvelope.sender,
-        receiver: recipient,
-        kind: MessageKind.DIRECT,
-        deliveryStage: DeliveryStage.DELIVER,
-      })
+        logMessageEvent({
+          payload: this._trySerialize(messageEnvelope.message),
+          sender: messageEnvelope.sender,
+          receiver: recipient,
+          kind: MessageKind.DIRECT,
+          deliveryStage: DeliveryStage.DELIVER,
+        })
 
-      const recipientAgent = await this._getAgent(recipient)
+        const recipientAgent = await this._getAgent(recipient)
 
-      const messageContext = new MessageContext({
-        sender: messageEnvelope.sender || undefined,
-        topicId: undefined,
-        isRpc: true,
-        cancellationToken: messageEnvelope.cancellationToken,
-        messageId: messageEnvelope.messageId,
-      })
+        const messageContext = new MessageContext({
+          sender: messageEnvelope.sender || undefined,
+          topicId: undefined,
+          isRpc: true,
+          cancellationToken: messageEnvelope.cancellationToken,
+          messageId: messageEnvelope.messageId,
+        })
 
-      const response = await recipientAgent.onMessage(messageEnvelope.message, messageContext)
+        const response = await recipientAgent.onMessage(messageEnvelope.message, messageContext)
 
-      logMessageEvent({
-        payload: this._trySerialize(response),
-        sender: messageEnvelope.recipient,
-        receiver: messageEnvelope.sender,
-        kind: MessageKind.RESPOND,
-        deliveryStage: DeliveryStage.SEND,
-      })
+        logMessageEvent({
+          payload: this._trySerialize(response),
+          sender: messageEnvelope.recipient,
+          receiver: messageEnvelope.sender,
+          kind: MessageKind.RESPOND,
+          deliveryStage: DeliveryStage.SEND,
+        })
 
-      // Queue the response
-      const responseEnvelope = new ResponseMessageEnvelope(
-        response,
-        messageEnvelope.recipient,
-        messageEnvelope.sender,
-        messageEnvelope.resolve
-      )
-      this._messageQueue.push(responseEnvelope)
-    } catch (error) {
-      logMessageHandlerExceptionEvent({
-        payload: this._trySerialize(messageEnvelope.message),
-        handlingAgent: recipient,
-        exception: error as Error,
-      })
-      messageEnvelope.reject(error)
-    }
+        // Queue the response
+        const responseEnvelope = new ResponseMessageEnvelope(
+          response,
+          messageEnvelope.recipient,
+          messageEnvelope.sender,
+          messageEnvelope.resolve
+        )
+        this._messageQueue.push(responseEnvelope)
+      } catch (error) {
+        logMessageHandlerExceptionEvent({
+          payload: this._trySerialize(messageEnvelope.message),
+          handlingAgent: recipient,
+          exception: error as Error,
+        })
+        messageEnvelope.reject(error)
+      }
+    })
   }
 
   private async _processPublish(messageEnvelope: PublishMessageEnvelope): Promise<void> {
@@ -638,7 +692,10 @@ export class InProcessRuntime implements CoreRuntime {
               handlingAgent: agentId,
               exception: error as Error,
             })
-            throw error
+            if (!this._ignoreUnhandledHandlerExceptions) {
+              throw error
+            }
+            return undefined
           }
         }
 
@@ -925,6 +982,7 @@ export class InProcessRuntime implements CoreRuntime {
       })
       return new TextDecoder().decode(payload)
     } catch (error) {
+      logger.warn('Failed to serialize message for logging:', error)
       return 'Message could not be serialized'
     }
   }
