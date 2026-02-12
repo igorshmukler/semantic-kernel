@@ -273,7 +273,8 @@ export class GoogleAITextEmbedding extends EmbeddingGeneratorBase {
    * @private
    */
   private closeClient(_client: GoogleClient): void {
-    // Implement cleanup if needed
-    // Python uses context managers (with statement), TypeScript might need explicit cleanup
+    // No cleanup needed for Google Generative AI SDK
+    // The SDK uses HTTP requests and doesn't maintain persistent connections
+    // that require explicit cleanup
   }
 }
