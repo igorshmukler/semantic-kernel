@@ -120,6 +120,8 @@ export class AssistantAgentThread extends AgentThread {
       })
       return response.id
     } catch (error) {
+      logger.error('Failed to create thread:', error)
+
       throw new AgentThreadOperationException(
         'The thread could not be created due to an error response from the service.'
       )
@@ -136,6 +138,8 @@ export class AssistantAgentThread extends AgentThread {
     try {
       await this._client.beta.threads.del(this._id)
     } catch (error) {
+      logger.error('Failed to delete thread:', error)
+
       throw new AgentThreadOperationException(
         'The thread could not be deleted due to an error response from the service.'
       )

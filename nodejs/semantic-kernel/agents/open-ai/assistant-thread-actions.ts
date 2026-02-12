@@ -202,7 +202,7 @@ export class AssistantThreadActions {
 
     const baseInstructions = await agent.formatInstructions(kernel, args as any)
 
-    let mergedInstructions = ''
+    let mergedInstructions
     if (instructionsOverride !== undefined) {
       mergedInstructions = instructionsOverride
     } else if (baseInstructions && additionalInstructions) {
@@ -410,7 +410,7 @@ export class AssistantThreadActions {
 
     const baseInstructions = await agent.formatInstructions(kernel, args as any)
 
-    let mergedInstructions = ''
+    let mergedInstructions
     if (instructionsOverride !== undefined) {
       mergedInstructions = instructionsOverride
     } else if (baseInstructions && additionalInstructions) {
